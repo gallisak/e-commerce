@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -40,27 +41,55 @@ export class EnvironmentVariables {
   @MinLength(32)
   JWT_ACCESS_SECRET: string;
 
-  @IsString()
-  JWT_ACCESS_TTL: string = '15m';
+  @IsInt()
+  @Min(60)
+  JWT_ACCESS_TTL_SECONDS: number = 900;
 
   @IsString()
   @MinLength(32)
   JWT_REFRESH_SECRET: string;
 
-  @IsString()
-  JWT_REFRESH_TTL: string = '7d';
+  @IsInt()
+  @Min(300)
+  JWT_REFRESH_TTL_SECONDS: number = 604800;
+
+  @IsBoolean()
+  COOKIE_SECURE: boolean = false;
+
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  TRUST_PROXY: number = 0;
 
   @IsString()
   CORS_ORIGIN: string = 'http://localhost:5173';
 
   @IsString()
   UPLOAD_DIR: string = 'uploads';
+
+  @IsInt()
+  @Min(1)
+  THROTTLE_LIMIT: number = 300;
+
+  @IsInt()
+  @Min(1)
+  THROTTLE_TTL_SECONDS: number = 60;
+
+  @IsInt()
+  @Min(1)
+  LOGIN_THROTTLE_LIMIT: number = 5;
+
+  @IsInt()
+  @Min(1)
+  LOGIN_THROTTLE_TTL_SECONDS: number = 60;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: true,
-  });
+  const validated = plainToInstance(
+    EnvironmentVariables,
+    { ...config, COOKIE_SECURE: config.COOKIE_SECURE === 'true' || config.COOKIE_SECURE === true },
+    { enableImplicitConversion: true },
+  );
   const errors = validateSync(validated, { skipMissingProperties: false });
   if (errors.length > 0) {
     const details = errors.map((e) => Object.values(e.constraints ?? {}).join(', ')).join('\n');
