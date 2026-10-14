@@ -4,5 +4,6 @@
 **/.env
 **/storybook-static
 backend/uploads
+backend/src/generated
 .git
 .github
