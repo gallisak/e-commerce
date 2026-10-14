@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/storybook-static
+backend/uploads
+.git
+.github
