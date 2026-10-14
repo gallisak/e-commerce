@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Redis } from 'ioredis';
 import { AuthModule } from './auth/auth.module.js';
+import { CartModule } from './cart/cart.module.js';
 import { CatalogCacheModule } from './catalog-cache/catalog-cache.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { LOGIN_RATE_LIMIT_KEY } from './common/decorators/login-rate-limit.decorator.js';
@@ -61,6 +62,7 @@ import { UsersModule } from './users/users.module.js';
     AuthModule,
     CategoriesModule,
     ProductsModule,
+    CartModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
