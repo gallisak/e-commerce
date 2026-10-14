@@ -1,26 +1,20 @@
-import { Test } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types.js';
-import { AppModule } from '../src/app.module.js';
+import { createTestApp, type TestContext } from './utils/test-app.js';
 
 describe('Health (e2e)', () => {
-  let app: INestApplication<App>;
+  let ctx: TestContext;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
+    ctx = await createTestApp();
   });
 
   afterAll(async () => {
-    await app.close();
+    await ctx.app.close();
   });
 
   it('GET /api/health reports database status', () => {
-    return request(app.getHttpServer())
+    return request(ctx.app.getHttpServer())
       .get('/api/health')
-      .expect(200, { status: 'ok', database: 'up' });
+      .expect(200, { status: 'ok', database: 'up', redis: 'up' });
   });
 });

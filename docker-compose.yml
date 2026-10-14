@@ -37,8 +37,7 @@ services:
       DATABASE_URL: postgresql://marketplace:marketplace@postgres:5432/marketplace?schema=public
       REDIS_HOST: redis
       CORS_ORIGIN: http://localhost:${FRONTEND_PORT:-8080}
-    ports:
-      - '${BACKEND_PORT:-3000}:3000'
+      TRUST_PROXY: 1
     volumes:
       - uploads:/app/backend/uploads
     depends_on:
