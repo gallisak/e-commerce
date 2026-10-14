@@ -5,6 +5,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Redis } from 'ioredis';
 import { AuthModule } from './auth/auth.module.js';
+import { CatalogCacheModule } from './catalog-cache/catalog-cache.module.js';
+import { CategoriesModule } from './categories/categories.module.js';
 import { LOGIN_RATE_LIMIT_KEY } from './common/decorators/login-rate-limit.decorator.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
@@ -12,6 +14,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
 import { type EnvironmentVariables, validateEnv } from './config/env.validation.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { ProductsModule } from './products/products.module.js';
 import { REDIS_CLIENT } from './redis/redis.constants.js';
 import { RedisModule } from './redis/redis.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -21,6 +24,7 @@ import { UsersModule } from './users/users.module.js';
     ConfigModule.forRoot({ isGlobal: true, cache: true, validate: validateEnv }),
     DatabaseModule,
     RedisModule,
+    CatalogCacheModule,
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],
@@ -55,6 +59,8 @@ import { UsersModule } from './users/users.module.js';
     HealthModule,
     UsersModule,
     AuthModule,
+    CategoriesModule,
+    ProductsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

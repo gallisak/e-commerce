@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -6,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { REFRESH_TOKEN_COOKIE } from './auth/auth.constants.js';
 import type { EnvironmentVariables } from './config/env.validation.js';
+import { UPLOADS_URL_PREFIX } from './storage/image-storage.service.js';
 
 export function configureApp(app: NestExpressApplication): void {
   const config = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
@@ -15,6 +17,12 @@ export function configureApp(app: NestExpressApplication): void {
   app.setGlobalPrefix('api');
   app.use(helmet());
   app.use(cookieParser());
+  app.useStaticAssets(resolve(config.get('UPLOAD_DIR', { infer: true })), {
+    prefix: UPLOADS_URL_PREFIX,
+    index: false,
+    dotfiles: 'deny',
+    maxAge: '7d',
+  });
   app.enableCors({ origin: config.get('CORS_ORIGIN', { infer: true }), credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({
