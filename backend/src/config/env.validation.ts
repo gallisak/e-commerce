@@ -69,6 +69,15 @@ export class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
+  @Max(50)
+  UPLOAD_MAX_FILE_SIZE_MB: number = 5;
+
+  @IsInt()
+  @Min(1)
+  CATALOG_CACHE_TTL_SECONDS: number = 300;
+
+  @IsInt()
+  @Min(1)
   THROTTLE_LIMIT: number = 300;
 
   @IsInt()
