@@ -33,7 +33,7 @@ describe('Auth (e2e)', () => {
       .send({ email, name: 'E2E User', password });
   };
 
-  it('registers, reads profile, rotates refresh token, detects reuse and logs out', async () => {
+  it('registers, rotates the refresh token, tolerates a quick retry, detects reuse and logs out', async () => {
     const server = ctx.app.getHttpServer();
     const email = uniqueEmail();
 
@@ -59,8 +59,19 @@ describe('Auth (e2e)', () => {
     const secondCookie = refreshCookieFrom(refreshed);
     expect(secondCookie).not.toBe(firstCookie);
 
+    const retried = await request(server)
+      .post('/api/auth/refresh')
+      .set('Cookie', firstCookie)
+      .expect(200);
+    const retriedCookie = refreshCookieFrom(retried);
+
+    await ctx.prisma.refreshToken.updateMany({
+      where: { user: { email }, revokedAt: { not: null } },
+      data: { revokedAt: new Date(Date.now() - 60_000) },
+    });
     await request(server).post('/api/auth/refresh').set('Cookie', firstCookie).expect(401);
     await request(server).post('/api/auth/refresh').set('Cookie', secondCookie).expect(401);
+    await request(server).post('/api/auth/refresh').set('Cookie', retriedCookie).expect(401);
 
     const loggedIn = await request(server)
       .post('/api/auth/login')

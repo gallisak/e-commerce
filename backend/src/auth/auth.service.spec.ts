@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException, UnauthorizedException } from '@ne
 import * as argon2 from 'argon2';
 import { Role, type RefreshToken, type User } from '../generated/prisma/client.js';
 import type { UsersService } from '../users/users.service.js';
+import { REFRESH_TOKEN_REUSE_GRACE_MS } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
 import type { RefreshTokenRepository } from './refresh-token.repository.js';
 import type { IssuedTokens, TokenService } from './token.service.js';
@@ -69,7 +70,8 @@ describe('AuthService', () => {
       create: vi.fn(),
       findById: vi.fn().mockResolvedValue(storedToken()),
       revokeIfActive: vi.fn().mockResolvedValue(true),
-      revokeAllForUser: vi.fn().mockResolvedValue(2),
+      deleteById: vi.fn(),
+      deleteAllForUser: vi.fn().mockResolvedValue(2),
       deleteExpiredForUser: vi.fn(),
     };
     service = new AuthService(
@@ -165,14 +167,28 @@ describe('AuthService', () => {
       await expect(service.refresh('valid-refresh')).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
-    it('revokes every session of the user when a revoked token is reused', async () => {
-      refreshTokens.findById.mockResolvedValue(storedToken({ revokedAt: new Date() }));
+    it('revokes every session of the user when an old rotated token is reused', async () => {
+      refreshTokens.findById.mockResolvedValue(
+        storedToken({ revokedAt: new Date(Date.now() - REFRESH_TOKEN_REUSE_GRACE_MS - 1000) }),
+      );
 
       await expect(service.refresh('valid-refresh')).rejects.toThrow(
         'Refresh token has been revoked',
       );
-      expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(user.id);
+      expect(refreshTokens.deleteAllForUser).toHaveBeenCalledWith(user.id);
       expect(tokenService.issue).not.toHaveBeenCalled();
+    });
+
+    it('treats reuse right after rotation as a retry of a lost response', async () => {
+      refreshTokens.findById.mockResolvedValue(
+        storedToken({ revokedAt: new Date(Date.now() - 1000) }),
+      );
+
+      const session = await service.refresh('valid-refresh');
+
+      expect(session.tokens).toBe(issued);
+      expect(refreshTokens.deleteAllForUser).not.toHaveBeenCalled();
+      expect(refreshTokens.revokeIfActive).not.toHaveBeenCalled();
     });
 
     it('rejects an expired token', async () => {
@@ -182,8 +198,19 @@ describe('AuthService', () => {
       await expect(service.refresh('valid-refresh')).rejects.toThrow('Refresh token has expired');
     });
 
-    it('rejects when a concurrent request already rotated the token', async () => {
+    it('issues a session when a concurrent request rotated the token a moment ago', async () => {
       refreshTokens.revokeIfActive.mockResolvedValue(false);
+      refreshTokens.findById
+        .mockResolvedValueOnce(storedToken())
+        .mockResolvedValueOnce(storedToken({ revokedAt: new Date() }));
+
+      await expect(service.refresh('valid-refresh')).resolves.toMatchObject({ tokens: issued });
+    });
+
+    it('rejects when the token was removed by a concurrent logout', async () => {
+      refreshTokens.revokeIfActive.mockResolvedValue(false);
+      refreshTokens.findById.mockResolvedValueOnce(storedToken()).mockResolvedValueOnce(null);
+
       await expect(service.refresh('valid-refresh')).rejects.toBeInstanceOf(UnauthorizedException);
       expect(tokenService.issue).not.toHaveBeenCalled();
     });
@@ -195,16 +222,16 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('revokes the presented refresh token', async () => {
+    it('deletes the presented refresh token so it cannot be retried', async () => {
       await service.logout('valid-refresh');
-      expect(refreshTokens.revokeIfActive).toHaveBeenCalledWith('rt-1');
+      expect(refreshTokens.deleteById).toHaveBeenCalledWith('rt-1');
     });
 
     it('is a no-op without a token or with an invalid one', async () => {
       await service.logout(undefined);
       tokenService.verifyRefreshToken.mockResolvedValue(null);
       await service.logout('garbage');
-      expect(refreshTokens.revokeIfActive).not.toHaveBeenCalled();
+      expect(refreshTokens.deleteById).not.toHaveBeenCalled();
     });
   });
 });

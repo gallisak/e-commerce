@@ -5,6 +5,7 @@ import type { User } from '../generated/prisma/client.js';
 import { UsersService } from '../users/users.service.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
+import { REFRESH_TOKEN_REUSE_GRACE_MS } from './auth.constants.js';
 import { RefreshTokenRepository } from './refresh-token.repository.js';
 import { type IssuedTokens, TokenService } from './token.service.js';
 
@@ -62,10 +63,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (stored.revokedAt) {
-      const revoked = await this.refreshTokens.revokeAllForUser(stored.userId);
+    if (stored.revokedAt && !this.isWithinReuseGrace(stored.revokedAt)) {
+      const removed = await this.refreshTokens.deleteAllForUser(stored.userId);
       this.logger.warn(
-        `Refresh token reuse detected for user ${stored.userId}; revoked ${revoked} active session(s)`,
+        `Refresh token reuse detected for user ${stored.userId}; revoked ${removed} session(s)`,
       );
       throw new UnauthorizedException('Refresh token has been revoked');
     }
@@ -74,8 +75,14 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
-    if (!(await this.refreshTokens.revokeIfActive(stored.id))) {
-      throw new UnauthorizedException('Refresh token has been revoked');
+    if (!stored.revokedAt && !(await this.refreshTokens.revokeIfActive(stored.id))) {
+      const current = await this.refreshTokens.findById(stored.id);
+      if (!current?.revokedAt || !this.isWithinReuseGrace(current.revokedAt)) {
+        throw new UnauthorizedException('Refresh token has been revoked');
+      }
+    }
+    if (stored.revokedAt) {
+      this.logger.log(`Recently rotated refresh token retried for user ${stored.userId}`);
     }
 
     const user = await this.usersService.getById(stored.userId).catch(() => {
@@ -91,7 +98,7 @@ export class AuthService {
 
     const stored = await this.refreshTokens.findById(payload.jti);
     if (stored && this.hashMatches(stored.tokenHash, refreshToken)) {
-      await this.refreshTokens.revokeIfActive(stored.id);
+      await this.refreshTokens.deleteById(stored.id);
       this.logger.log(`User logged out: ${stored.userId}`);
     }
   }
@@ -106,6 +113,10 @@ export class AuthService {
     });
     await this.refreshTokens.deleteExpiredForUser(user.id);
     return { user, tokens };
+  }
+
+  private isWithinReuseGrace(revokedAt: Date): boolean {
+    return Date.now() - revokedAt.getTime() <= REFRESH_TOKEN_REUSE_GRACE_MS;
   }
 
   private hashMatches(storedHash: string, token: string): boolean {

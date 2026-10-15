@@ -1,0 +1,39 @@
+import { useQuery } from '@tanstack/react-query';
+import { ErrorState } from '@/components/feedback/error-state';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { authApi } from '@/features/auth/api';
+import { formatDate } from '@/lib/format';
+
+export function AccountPage() {
+  const profile = useQuery({ queryKey: ['users', 'me'], queryFn: authApi.me });
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold tracking-tight">My account</h1>
+      {profile.isPending && <Skeleton className="h-36 w-full max-w-md" />}
+      {profile.isError && (
+        <ErrorState
+          error={profile.error}
+          title="Could not load your profile"
+          onRetry={() => profile.refetch()}
+        />
+      )}
+      {profile.data && (
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {profile.data.name}
+              {profile.data.role === 'ADMIN' && <Badge variant="secondary">Admin</Badge>}
+            </CardTitle>
+            <CardDescription>{profile.data.email}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Member since {formatDate(profile.data.createdAt)}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

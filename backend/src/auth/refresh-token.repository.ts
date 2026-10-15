@@ -24,11 +24,12 @@ export class RefreshTokenRepository {
     return count === 1;
   }
 
-  async revokeAllForUser(userId: string): Promise<number> {
-    const { count } = await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+  async deleteById(id: string): Promise<void> {
+    await this.prisma.refreshToken.deleteMany({ where: { id } });
+  }
+
+  async deleteAllForUser(userId: string): Promise<number> {
+    const { count } = await this.prisma.refreshToken.deleteMany({ where: { userId } });
     return count;
   }
 
