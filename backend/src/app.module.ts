@@ -5,6 +5,7 @@ import { APP_GUARD, Reflector } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Redis } from 'ioredis';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CartModule } from './cart/cart.module.js';
 import { CatalogCacheModule } from './catalog-cache/catalog-cache.module.js';
@@ -77,6 +78,7 @@ import { UsersModule } from './users/users.module.js';
     ProductsModule,
     CartModule,
     OrdersModule,
+    AnalyticsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
