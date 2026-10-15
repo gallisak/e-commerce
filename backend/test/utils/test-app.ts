@@ -1,4 +1,4 @@
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import * as argon2 from 'argon2';
 import type { Redis } from 'ioredis';
@@ -15,11 +15,13 @@ export interface TestContext {
   redis: Redis;
 }
 
-export async function createTestApp(): Promise<TestContext> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+export async function createTestApp(
+  customize: (builder: TestingModuleBuilder) => TestingModuleBuilder = (builder) => builder,
+): Promise<TestContext> {
+  const moduleRef = await customize(Test.createTestingModule({ imports: [AppModule] })).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   configureApp(app);
-  await app.init();
+  await app.listen(0);
 
   const context = { app, prisma: app.get(PrismaService), redis: app.get<Redis>(REDIS_CLIENT) };
   await resetThrottling(context.redis);
@@ -49,4 +51,17 @@ export async function createUserAndLogin(
     .expect(200);
   await resetThrottling(ctx.redis);
   return { id: user.id, email, accessToken: res.body.accessToken as string };
+}
+
+export async function waitFor<T>(
+  probe: () => Promise<T>,
+  done: (value: T) => boolean,
+  timeoutMs = 15_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await probe();
+    if (done(value) || Date.now() > deadline) return value;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
