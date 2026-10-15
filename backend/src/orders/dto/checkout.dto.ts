@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
+import { SingleLineText } from '../../common/validation/text.decorators.js';
 
 export class CheckoutDto {
   @ApiProperty({ example: '1 Khreshchatyk St, apt 5, Kyiv' })
@@ -8,6 +9,6 @@ export class CheckoutDto {
   @IsString()
   @MinLength(5)
   @MaxLength(500)
-  @Matches(/^[^\p{Cc}]*$/u, { message: '$property must not contain control characters' })
+  @SingleLineText()
   shippingAddress: string;
 }

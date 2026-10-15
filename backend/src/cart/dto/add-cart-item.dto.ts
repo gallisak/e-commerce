@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsUUID, Max, Min } from 'class-validator';
+import { IsOptionalNotNull } from '../../common/validation/optional.decorator.js';
 
 export const MAX_CART_ITEM_QUANTITY = 99;
 
@@ -9,7 +10,7 @@ export class AddCartItemDto {
   productId: string;
 
   @ApiPropertyOptional({ minimum: 1, maximum: MAX_CART_ITEM_QUANTITY, default: 1 })
-  @IsOptional()
+  @IsOptionalNotNull()
   @IsInt()
   @Min(1)
   @Max(MAX_CART_ITEM_QUANTITY)

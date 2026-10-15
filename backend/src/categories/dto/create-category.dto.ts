@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsOptionalNotNull } from '../../common/validation/optional.decorator.js';
+import { SingleLineText } from '../../common/validation/text.decorators.js';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -10,10 +12,11 @@ export class CreateCategoryDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
+  @SingleLineText()
   name: string;
 
   @ApiPropertyOptional({ example: 'electronics', description: 'Generated from name when omitted' })
-  @IsOptional()
+  @IsOptionalNotNull()
   @Transform(trim)
   @IsString()
   @MaxLength(100)

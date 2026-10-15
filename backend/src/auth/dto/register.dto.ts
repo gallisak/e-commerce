@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { SingleLineText } from '../../common/validation/text.decorators.js';
 
 export class RegisterDto {
   @ApiProperty({ example: 'jane@example.com' })
@@ -14,6 +15,7 @@ export class RegisterDto {
   @IsString()
   @MinLength(1)
   @MaxLength(100)
+  @SingleLineText()
   name: string;
 
   @ApiProperty({ example: 'Secret123!', minLength: 8, maxLength: 128 })

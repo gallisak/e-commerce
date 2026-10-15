@@ -13,7 +13,8 @@ RUN npm run build -w backend \
  && rm -rf backend/src backend/test
 
 FROM node:24-alpine AS runtime
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/backend backend

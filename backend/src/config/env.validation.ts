@@ -20,6 +20,19 @@ export enum NodeEnv {
   Test = 'test',
 }
 
+export enum LogFormat {
+  Text = 'text',
+  Json = 'json',
+}
+
+export enum AppLogLevel {
+  Error = 'error',
+  Warn = 'warn',
+  Log = 'log',
+  Debug = 'debug',
+  Verbose = 'verbose',
+}
+
 export class EnvironmentVariables {
   @IsEnum(NodeEnv)
   NODE_ENV: NodeEnv = NodeEnv.Development;
@@ -28,6 +41,12 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(65535)
   PORT: number = 3000;
+
+  @IsEnum(AppLogLevel)
+  LOG_LEVEL: AppLogLevel = AppLogLevel.Log;
+
+  @IsEnum(LogFormat)
+  LOG_FORMAT: LogFormat = LogFormat.Text;
 
   @IsString()
   @IsNotEmpty()
