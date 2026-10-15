@@ -178,6 +178,9 @@ async function seedDemoOrders(prisma: PrismaClient, customerId: string, random: 
       status === OrderStatus.CANCELLED
         ? [OrderStatus.NEW, OrderStatus.CANCELLED]
         : path.slice(0, path.indexOf(status) + 1);
+    const changedAt = transitions.map(
+      (_, step) => new Date(Math.min(createdAt.getTime() + step * 3_600_000, Date.now())),
+    );
 
     await prisma.order.create({
       data: {
@@ -187,13 +190,13 @@ async function seedDemoOrders(prisma: PrismaClient, customerId: string, random: 
         shippingAddress: '1 Khreshchatyk St, Kyiv',
         cancelReason: status === OrderStatus.CANCELLED ? 'Cancelled by customer' : null,
         createdAt,
-        updatedAt: createdAt,
+        updatedAt: changedAt[changedAt.length - 1],
         items: { create: items },
         statusHistory: {
           create: transitions.map((toStatus, step) => ({
             fromStatus: step === 0 ? null : transitions[step - 1],
             toStatus,
-            createdAt: new Date(createdAt.getTime() + step * 3_600_000),
+            createdAt: changedAt[step],
           })),
         },
       },

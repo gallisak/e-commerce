@@ -7,6 +7,12 @@ class FakeRedis {
   store = new Map<string, string>();
   ttl = new Map<string, number>();
   failing = false;
+  handlers = new Map<string, () => void>();
+
+  on(event: string, handler: () => void) {
+    this.handlers.set(event, handler);
+    return this;
+  }
 
   async get(key: string) {
     if (this.failing) throw new Error('connection lost');
@@ -92,5 +98,24 @@ describe('CatalogCacheService', () => {
       hit: false,
     });
     await expect(cache.invalidate('test')).resolves.toBeUndefined();
+  });
+
+  it('retries a failed invalidation once Redis is back so stale entries are not served', async () => {
+    const loader = vi.fn().mockResolvedValueOnce('stale').mockResolvedValueOnce('fresh');
+    await cache.getOrSet('products:item', { id: '1' }, loader);
+
+    redis.failing = true;
+    await cache.invalidate('stock reserved by order');
+    redis.failing = false;
+
+    expect((await cache.getOrSet('products:item', { id: '1' }, loader)).hit).toBe(true);
+
+    redis.handlers.get('ready')?.();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    await expect(cache.getOrSet('products:item', { id: '1' }, loader)).resolves.toEqual({
+      value: 'fresh',
+      hit: false,
+    });
   });
 });

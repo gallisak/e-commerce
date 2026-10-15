@@ -16,12 +16,16 @@ const VERSION_KEY = 'catalog:version';
 export class CatalogCacheService {
   private readonly logger = new Logger(CatalogCacheService.name);
   private readonly ttlSeconds: number;
+  private pendingInvalidation = false;
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.ttlSeconds = config.get('CATALOG_CACHE_TTL_SECONDS', { infer: true });
+    this.redis.on('ready', () => {
+      if (this.pendingInvalidation) void this.invalidate('missed while Redis was unavailable');
+    });
   }
 
   async getOrSet<T>(
@@ -50,9 +54,13 @@ export class CatalogCacheService {
   async invalidate(reason: string): Promise<void> {
     try {
       const version = await this.redis.incr(VERSION_KEY);
+      this.pendingInvalidation = false;
       this.logger.log(`Catalog cache invalidated (${reason}), version=${version}`);
     } catch (error) {
-      this.logger.error(`Catalog cache invalidation failed: ${(error as Error).message}`);
+      this.pendingInvalidation = true;
+      this.logger.error(
+        `Catalog cache invalidation failed, will retry on reconnect: ${(error as Error).message}`,
+      );
     }
   }
 

@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, Reflector } from '@nestjs/core';
@@ -15,6 +16,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
 import { type EnvironmentVariables, validateEnv } from './config/env.validation.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { OrdersModule } from './orders/orders.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { REDIS_CLIENT } from './redis/redis.constants.js';
 import { RedisModule } from './redis/redis.module.js';
@@ -31,6 +33,17 @@ import { UsersModule } from './users/users.module.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
         secret: config.get('JWT_ACCESS_SECRET', { infer: true }),
+      }),
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
+        prefix: config.get('QUEUE_PREFIX', { infer: true }),
+        connection: {
+          host: config.get('REDIS_HOST', { infer: true }),
+          port: config.get('REDIS_PORT', { infer: true }),
+          maxRetriesPerRequest: null,
+        },
       }),
     }),
     ThrottlerModule.forRootAsync({
@@ -63,6 +76,7 @@ import { UsersModule } from './users/users.module.js';
     CategoriesModule,
     ProductsModule,
     CartModule,
+    OrdersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

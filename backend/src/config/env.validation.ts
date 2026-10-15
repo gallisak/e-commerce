@@ -3,8 +3,11 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNumber,
   IsNotEmpty,
   IsString,
+  IsTimeZone,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -36,6 +39,10 @@ export class EnvironmentVariables {
 
   @IsInt()
   REDIS_PORT: number = 6379;
+
+  @IsString()
+  @Matches(/^[a-z0-9-]+$/)
+  QUEUE_PREFIX: string = 'bull';
 
   @IsString()
   @MinLength(32)
@@ -75,6 +82,23 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   CATALOG_CACHE_TTL_SECONDS: number = 300;
+
+  @IsInt()
+  @Min(0)
+  @Max(60_000)
+  PAYMENT_MOCK_DELAY_MS: number = 1500;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  PAYMENT_MOCK_FAILURE_RATE: number = 0;
+
+  @IsInt()
+  @Min(0)
+  ORDER_RECOVERY_INTERVAL_SECONDS: number = 60;
+
+  @IsTimeZone()
+  STORE_TIMEZONE: string = 'Europe/Kyiv';
 
   @IsInt()
   @Min(1)
