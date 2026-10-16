@@ -219,29 +219,6 @@ describe('Orders (e2e)', () => {
     await customer.post('/api/orders').set('Idempotency-Key', 'bad key!').send(ADDRESS).expect(400);
   });
 
-  it('lets a customer cancel a NEW order and returns the stock', async () => {
-    const customer = await newCustomer();
-    const product = await catalog.createProduct('Cancelable', 700, 4);
-    await customer.post('/api/cart/items').send({ productId: product.id, quantity: 3 }).expect(200);
-
-    const placed = await customer.post('/api/orders').send(ADDRESS).expect(201);
-    expect(await stockOf(product.id)).toBe(1);
-
-    const cancelled = await customer
-      .post(`/api/orders/${placed.body.id}/cancel`)
-      .send({ reason: 'Changed my mind' })
-      .expect(200);
-    expect(cancelled.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'Changed my mind' });
-    expect(await stockOf(product.id)).toBe(4);
-
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    const after = await customer.get(`/api/orders/${placed.body.id}`).expect(200);
-    expect(after.body.status).toBe('CANCELLED');
-    expect(await stockOf(product.id)).toBe(4);
-
-    await customer.post(`/api/orders/${placed.body.id}/cancel`).send({}).expect(409);
-  });
-
   it('enforces the status workflow for admins and customers', async () => {
     const customer = await newCustomer();
     const product = await catalog.createProduct('Workflow', 900, 5);
@@ -418,5 +395,72 @@ describe('Orders with failing payments (e2e)', () => {
     expect((await ctx.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(
       3,
     );
+  });
+});
+
+describe('Cancellation while the payment is in flight (e2e)', () => {
+  let ctx: TestContext;
+  let catalog: Awaited<ReturnType<typeof setupCatalog>>;
+  const userIds: string[] = [];
+  const refunds: string[] = [];
+  let releasePayment: () => void = () => undefined;
+  let paymentGate: Promise<void> = Promise.resolve();
+
+  beforeAll(async () => {
+    ctx = await createTestApp((builder) =>
+      builder.overrideProvider(MockPaymentService).useValue({
+        charge: async (orderId: string) => {
+          await paymentGate;
+          return { success: true, transactionId: `mock_${orderId}` };
+        },
+        refund: async (orderId: string) => {
+          refunds.push(orderId);
+        },
+      }),
+    );
+    catalog = await setupCatalog(ctx, 'inflight');
+  });
+
+  afterAll(async () => {
+    releasePayment();
+    await cleanup(ctx, userIds, catalog.categoryId);
+    await ctx.app.close();
+  });
+
+  it('lets a customer cancel a NEW order and refunds a payment captured meanwhile', async () => {
+    paymentGate = new Promise((resolve) => (releasePayment = resolve));
+    const user = await createUserAndLogin(ctx, Role.CUSTOMER);
+    userIds.push(user.id);
+    const customer = clientFor(ctx, user.accessToken);
+    const product = await catalog.createProduct('Cancelable', 700, 4);
+    const stockOf = async () =>
+      (await ctx.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock;
+    await customer.post('/api/cart/items').send({ productId: product.id, quantity: 3 }).expect(200);
+
+    const placed = await customer.post('/api/orders').send(ADDRESS).expect(201);
+    expect(await stockOf()).toBe(1);
+
+    const cancelled = await customer
+      .post(`/api/orders/${placed.body.id}/cancel`)
+      .send({ reason: 'Changed my mind' })
+      .expect(200);
+    expect(cancelled.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'Changed my mind' });
+    expect(cancelled.body.payment).toEqual({
+      status: 'NOT_PAID',
+      transactionId: null,
+      refundedAt: null,
+    });
+    expect(await stockOf()).toBe(4);
+    await customer.post(`/api/orders/${placed.body.id}/cancel`).send({}).expect(409);
+
+    releasePayment();
+    const refunded = await waitFor(
+      async () => (await customer.get(`/api/orders/${placed.body.id}`)).body,
+      (order) => order.payment.status === 'REFUNDED',
+    );
+    expect(refunded.status).toBe('CANCELLED');
+    expect(refunded.payment.transactionId).toBe(`mock_${placed.body.id}`);
+    expect(refunds).toEqual([placed.body.id]);
+    expect(await stockOf()).toBe(4);
   });
 });

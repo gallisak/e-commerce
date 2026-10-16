@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2Icon, ChevronLeftIcon, Loader2Icon, PackageXIcon } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { ButtonLink } from '@/components/button-link';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toApiError } from '@/lib/api/errors';
 import { formatDateTime, formatPrice } from '@/lib/format';
@@ -16,11 +16,13 @@ import { myOrderQuery } from '../api';
 import { CancelOrderButton } from '../components/cancel-order-button';
 import { OrderStatusBadge } from '../components/order-status-badge';
 import { OrderTimeline } from '../components/order-timeline';
+import { OrderItemsCard } from '../components/order-items-card';
 import { CUSTOMER_CANCELLABLE, shortOrderId } from '../order-status';
 
 export function OrderPage() {
   const { orderId = '' } = useParams();
   const location = useLocation();
+  const [cancelOpen, setCancelOpen] = useState(false);
   const justPlaced = (location.state as { placed?: boolean } | null)?.placed === true;
   const validId = isUuid(orderId);
   const order = useQuery({ ...myOrderQuery(orderId), enabled: validId });
@@ -68,7 +70,7 @@ export function OrderPage() {
     totalAmount,
     shippingAddress,
     cancelReason,
-    items,
+    payment,
     statusHistory,
     createdAt,
   } = order.data;
@@ -93,7 +95,9 @@ export function OrderPage() {
             Placed on <time dateTime={createdAt}>{formatDateTime(createdAt)}</time>
           </p>
         </div>
-        {CUSTOMER_CANCELLABLE.includes(status) && <CancelOrderButton orderId={id} />}
+        {(CUSTOMER_CANCELLABLE.includes(status) || cancelOpen) && (
+          <CancelOrderButton orderId={id} open={cancelOpen} onOpenChange={setCancelOpen} />
+        )}
       </div>
 
       {justPlaced && status !== 'CANCELLED' && (
@@ -114,41 +118,18 @@ export function OrderPage() {
       {status === 'CANCELLED' && cancelReason && (
         <Alert variant="destructive">
           <AlertTitle>This order was cancelled</AlertTitle>
-          <AlertDescription>{cancelReason}</AlertDescription>
+          <AlertDescription>
+            {cancelReason}
+            {payment.status === 'REFUND_PENDING' &&
+              ` Your payment of ${formatPrice(totalAmount)} is being refunded.`}
+            {payment.status === 'REFUNDED' &&
+              ` Your payment of ${formatPrice(totalAmount)} has been refunded.`}
+          </AlertDescription>
         </Alert>
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Items</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <ul aria-label="Order items" className="divide-y">
-              {items.map((item) => (
-                <li key={item.productId} className="flex justify-between gap-3 py-2">
-                  <span className="min-w-0">
-                    <Link
-                      to={`/products/${item.productId}`}
-                      className="font-medium hover:underline"
-                    >
-                      {item.productName}
-                    </Link>
-                    <span className="block text-muted-foreground tabular-nums">
-                      {item.quantity} × {formatPrice(item.unitPrice)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 tabular-nums">{formatPrice(item.lineTotal)}</span>
-                </li>
-              ))}
-            </ul>
-            <Separator />
-            <div className="flex justify-between text-base font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums">{formatPrice(totalAmount)}</span>
-            </div>
-          </CardContent>
-        </Card>
+        <OrderItemsCard order={order.data} linkProducts />
 
         <div className="space-y-6">
           <Card>

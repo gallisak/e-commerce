@@ -2,7 +2,11 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { OrdersService } from '../orders.service.js';
-import { ORDERS_QUEUE, type ProcessOrderJobData } from './orders-queue.constants.js';
+import {
+  ORDERS_QUEUE,
+  type ProcessOrderJobData,
+  REFUND_ORDER_JOB,
+} from './orders-queue.constants.js';
 
 @Processor(ORDERS_QUEUE, { concurrency: 5 })
 export class OrderProcessingProcessor extends WorkerHost {
@@ -14,6 +18,11 @@ export class OrderProcessingProcessor extends WorkerHost {
   }
 
   async process(job: Job<ProcessOrderJobData>): Promise<void> {
+    if (job.name === REFUND_ORDER_JOB) {
+      this.logger.log(`Refunding order ${job.data.orderId} (attempt ${job.attemptsMade + 1})`);
+      await this.ordersService.refundPayment(job.data.orderId);
+      return;
+    }
     this.logger.log(`Processing order ${job.data.orderId} (attempt ${job.attemptsMade + 1})`);
     await this.ordersService.processPayment(job.data.orderId);
   }
@@ -21,7 +30,7 @@ export class OrderProcessingProcessor extends WorkerHost {
   @OnWorkerEvent('failed')
   onFailed(job: Job<ProcessOrderJobData> | undefined, error: Error): void {
     this.logger.error(
-      `Order processing failed: ${job?.data.orderId ?? 'unknown'} attempt ${job?.attemptsMade ?? '?'}: ${error.message}`,
+      `Order job ${job?.name ?? 'unknown'} failed: ${job?.data.orderId ?? 'unknown'} attempt ${job?.attemptsMade ?? '?'}: ${error.message}`,
     );
   }
 

@@ -72,6 +72,7 @@ export function order(overrides: Partial<OrderDetail> = {}): OrderDetail {
     totalAmount: 119_800,
     shippingAddress: '1 Test Street, Kyiv',
     cancelReason: null,
+    payment: { status: 'PENDING', transactionId: null, refundedAt: null },
     customer: { id: 'u-customer', email: 'customer@example.com', name: 'Demo Customer' },
     items: [
       {

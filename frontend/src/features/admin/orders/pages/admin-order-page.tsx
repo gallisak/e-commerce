@@ -6,13 +6,13 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OrderStatusBadge } from '@/features/orders/components/order-status-badge';
 import { OrderTimeline } from '@/features/orders/components/order-timeline';
+import { OrderItemsCard } from '@/features/orders/components/order-items-card';
 import { shortOrderId } from '@/features/orders/order-status';
 import { toApiError } from '@/lib/api/errors';
-import { formatDateTime, formatPrice } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
 import { isUuid } from '@/lib/ids';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { adminOrderQuery } from '../api';
@@ -52,8 +52,7 @@ export function AdminOrderPage() {
       </div>
     );
   } else {
-    const { id, status, totalAmount, shippingAddress, cancelReason, customer, items, createdAt } =
-      order.data;
+    const { id, status, shippingAddress, cancelReason, customer, createdAt } = order.data;
     content = (
       <>
         <div className="space-y-1">
@@ -79,31 +78,7 @@ export function AdminOrderPage() {
         )}
         <div className="grid items-start gap-6 xl:grid-cols-[1fr_20rem]">
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Items</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <ul aria-label="Order items" className="divide-y">
-                  {items.map((item) => (
-                    <li key={item.productId} className="flex justify-between gap-3 py-2">
-                      <span className="min-w-0">
-                        <span className="font-medium">{item.productName}</span>
-                        <span className="block text-muted-foreground tabular-nums">
-                          {item.quantity} × {formatPrice(item.unitPrice)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 tabular-nums">{formatPrice(item.lineTotal)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Separator />
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span className="tabular-nums">{formatPrice(totalAmount)}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <OrderItemsCard order={order.data} />
             <div className="grid gap-6 md:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -130,7 +105,7 @@ export function AdminOrderPage() {
               <CardTitle>Update status</CardTitle>
             </CardHeader>
             <CardContent>
-              <StatusChanger key={`${id}:${status}`} order={order.data} />
+              <StatusChanger key={id} order={order.data} />
             </CardContent>
           </Card>
         </div>

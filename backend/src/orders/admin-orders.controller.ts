@@ -40,7 +40,10 @@ export class AdminOrdersController {
   @Patch(':id/status')
   @ApiOkResponse({ type: OrderDetailDto })
   @ApiNotFoundResponse()
-  @ApiConflictResponse({ description: 'Transition not allowed from the current status' })
+  @ApiConflictResponse({
+    description:
+      'Transition not allowed from the current status; PROCESSING is set only by the payment worker',
+  })
   changeStatus(
     @CurrentUser() admin: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,

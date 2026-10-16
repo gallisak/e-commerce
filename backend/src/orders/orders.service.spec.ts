@@ -21,6 +21,8 @@ const makeOrder = (overrides: Partial<OrderWithDetails> = {}): OrderWithDetails 
   shippingAddress: 'Kyiv',
   idempotencyKey: null,
   cancelReason: null,
+  paymentId: null,
+  refundedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   items: [
@@ -48,7 +50,10 @@ const makeOrder = (overrides: Partial<OrderWithDetails> = {}): OrderWithDetails 
 
 describe('OrdersService', () => {
   let repo: Record<keyof OrdersRepository, ReturnType<typeof vi.fn>>;
-  let queue: { enqueueProcessing: ReturnType<typeof vi.fn> };
+  let queue: {
+    enqueueProcessing: ReturnType<typeof vi.fn>;
+    enqueueRefund: ReturnType<typeof vi.fn>;
+  };
   let payments: { charge: ReturnType<typeof vi.fn>; refund: ReturnType<typeof vi.fn> };
   let cache: { invalidate: ReturnType<typeof vi.fn> };
   let service: OrdersService;
@@ -87,8 +92,15 @@ describe('OrdersService', () => {
       updateStatusIfCurrent: vi.fn().mockResolvedValue(true),
       addStatusHistory: vi.fn(),
       findStaleNewOrderIds: vi.fn(),
+      findPendingRefundIds: vi.fn(),
+      markRefunded: vi.fn().mockResolvedValue(true),
+      lockCart: vi.fn(),
+      attachPayment: vi.fn(),
     };
-    queue = { enqueueProcessing: vi.fn().mockResolvedValue(true) };
+    queue = {
+      enqueueProcessing: vi.fn().mockResolvedValue(true),
+      enqueueRefund: vi.fn().mockResolvedValue(true),
+    };
     payments = {
       charge: vi.fn().mockResolvedValue({ success: true, transactionId: 'tx-1' }),
       refund: vi.fn(),
@@ -232,7 +244,7 @@ describe('OrdersService', () => {
         order.id,
         OrderStatus.NEW,
         OrderStatus.CANCELLED,
-        'Changed my mind',
+        { cancelReason: 'Changed my mind', paymentId: undefined },
       );
       expect(repo.releaseStock).toHaveBeenCalledWith(TX, order.items);
       expect(repo.addStatusHistory).toHaveBeenCalledWith(TX, {
@@ -305,7 +317,7 @@ describe('OrdersService', () => {
         'order-1',
         OrderStatus.NEW,
         OrderStatus.PROCESSING,
-        null,
+        { cancelReason: null, paymentId: 'tx-1' },
       );
       expect(repo.addStatusHistory).toHaveBeenCalledWith(
         TX,
@@ -323,7 +335,7 @@ describe('OrdersService', () => {
         'order-1',
         OrderStatus.NEW,
         OrderStatus.CANCELLED,
-        'Payment declined (mock)',
+        { cancelReason: 'Payment declined (mock)', paymentId: undefined },
       );
       expect(repo.releaseStock).toHaveBeenCalled();
     });
@@ -334,14 +346,16 @@ describe('OrdersService', () => {
       expect(payments.charge).not.toHaveBeenCalled();
     });
 
-    it('refunds when the order was cancelled while the payment was in flight', async () => {
+    it('schedules a refund when the order was cancelled while the payment was in flight', async () => {
       repo.findById
         .mockResolvedValueOnce(makeOrder())
         .mockResolvedValueOnce(makeOrder({ status: OrderStatus.CANCELLED }));
 
       await service.processPayment('order-1');
 
-      expect(payments.refund).toHaveBeenCalledWith('order-1', 'tx-1');
+      expect(repo.attachPayment).toHaveBeenCalledWith('order-1', 'tx-1');
+      expect(queue.enqueueRefund).toHaveBeenCalledWith('order-1');
+      expect(payments.refund).not.toHaveBeenCalled();
       expect(repo.updateStatusIfCurrent).not.toHaveBeenCalled();
     });
 

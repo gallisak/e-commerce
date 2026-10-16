@@ -22,6 +22,7 @@ import {
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/types/auth-user.js';
@@ -51,6 +52,9 @@ export class OrdersController {
   @ApiOkResponse({ type: OrderDetailDto, description: 'Replay of an already placed order' })
   @ApiBadRequestResponse({ description: 'Empty cart or invalid payload' })
   @ApiConflictResponse({ description: 'Insufficient stock; body lists affected items' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Idempotency-Key was already used with a different payload',
+  })
   async checkout(
     @CurrentUser() user: AuthUser,
     @Body() dto: CheckoutDto,

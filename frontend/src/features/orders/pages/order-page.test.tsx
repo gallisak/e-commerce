@@ -120,9 +120,14 @@ describe('OrderPage', () => {
         'Order in status PROCESSING can no longer be cancelled by the customer',
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Keep order' }),
+    );
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Processing'),
     );
+    expect(screen.queryByRole('button', { name: 'Cancel order' })).not.toBeInTheDocument();
   });
 
   it('shows not found for foreign or missing orders', async () => {

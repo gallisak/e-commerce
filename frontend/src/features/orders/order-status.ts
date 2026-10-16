@@ -18,8 +18,8 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const CUSTOMER_CANCELLABLE: readonly OrderStatus[] = ['NEW'];
 
-export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
-  NEW: ['PROCESSING', 'CANCELLED'],
+export const ADMIN_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  NEW: ['CANCELLED'],
   PROCESSING: ['SHIPPED', 'CANCELLED'],
   SHIPPED: ['COMPLETED'],
   COMPLETED: [],

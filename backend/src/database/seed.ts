@@ -182,10 +182,19 @@ async function seedDemoOrders(prisma: PrismaClient, customerId: string, random: 
       (_, step) => new Date(Math.min(createdAt.getTime() + step * 3_600_000, Date.now())),
     );
 
+    const paymentId =
+      status === OrderStatus.CANCELLED ? null : `mock_seed_${String(i + 1).padStart(3, '0')}`;
+    const notes: Partial<Record<OrderStatus, string>> = {
+      [OrderStatus.NEW]: 'Order placed',
+      [OrderStatus.PROCESSING]: `Payment captured (${paymentId})`,
+      [OrderStatus.CANCELLED]: 'Cancelled by customer',
+    };
+
     await prisma.order.create({
       data: {
         userId: customerId,
         status,
+        paymentId,
         totalAmount: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
         shippingAddress: '1 Khreshchatyk St, Kyiv',
         cancelReason: status === OrderStatus.CANCELLED ? 'Cancelled by customer' : null,
@@ -196,6 +205,7 @@ async function seedDemoOrders(prisma: PrismaClient, customerId: string, random: 
           create: transitions.map((toStatus, step) => ({
             fromStatus: step === 0 ? null : transitions[step - 1],
             toStatus,
+            note: notes[toStatus] ?? null,
             createdAt: changedAt[step],
           })),
         },

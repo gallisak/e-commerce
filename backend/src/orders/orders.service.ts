@@ -4,10 +4,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/types/auth-user.js';
 import { CatalogCacheService } from '../catalog-cache/catalog-cache.service.js';
+import { isUniqueViolation } from '../common/filters/prisma-error.mapper.js';
 import { PaginationMetaDto } from '../common/dto/pagination.dto.js';
 import { isCalendarDate, startOfLocalDay } from '../common/utils/dates.js';
 import type { EnvironmentVariables } from '../config/env.validation.js';
@@ -49,6 +51,7 @@ interface TransitionRequest {
   actorId: string | null;
   note: string | null;
   expectedFrom?: readonly OrderStatus[];
+  paymentId?: string;
 }
 
 @Injectable()
@@ -73,21 +76,23 @@ export class OrdersService {
   ): Promise<CheckoutResult> {
     if (idempotencyKey) {
       const existing = await this.ordersRepository.findByIdempotencyKey(user.id, idempotencyKey);
-      if (existing) return { order: OrderDetailDto.fromEntity(existing), replayed: true };
+      if (existing) return this.replay(existing, dto);
     }
 
-    let order: OrderWithDetails;
+    let placed: { order: OrderWithDetails; created: boolean };
     try {
-      order = await this.ordersRepository.transaction((tx) =>
+      placed = await this.ordersRepository.transaction((tx) =>
         this.placeOrder(tx, user.id, dto.shippingAddress, idempotencyKey ?? null),
       );
     } catch (error) {
       if (idempotencyKey && isUniqueViolation(error)) {
         const existing = await this.ordersRepository.findByIdempotencyKey(user.id, idempotencyKey);
-        if (existing) return { order: OrderDetailDto.fromEntity(existing), replayed: true };
+        if (existing) return this.replay(existing, dto);
       }
       throw error;
     }
+    if (!placed.created) return this.replay(placed.order, dto);
+    const { order } = placed;
 
     this.logger.log(
       `Order created: ${order.id} user=${user.id} items=${order.items.length} total=${order.totalAmount}`,
@@ -154,7 +159,11 @@ export class OrdersService {
     to: OrderStatus,
     note?: string,
   ): Promise<OrderDetailDto> {
-    await this.getOrThrow(orderId);
+    if (to === OrderStatus.PROCESSING) {
+      throw new ConflictException(
+        'Orders move to PROCESSING automatically once the payment is captured',
+      );
+    }
     return OrderDetailDto.fromEntity(
       await this.transition({
         orderId,
@@ -186,6 +195,7 @@ export class OrdersService {
               actorId: null,
               note: `Payment captured (${payment.transactionId})`,
               expectedFrom: [OrderStatus.NEW],
+              paymentId: payment.transactionId,
             }
           : {
               orderId,
@@ -198,10 +208,37 @@ export class OrdersService {
     } catch (error) {
       if (error instanceof ConflictException) {
         this.logger.warn(`Order ${orderId} changed while processing payment: ${error.message}`);
-        if (payment.success) await this.payments.refund(orderId, payment.transactionId);
+        if (payment.success) {
+          await this.ordersRepository.attachPayment(orderId, payment.transactionId);
+          this.logger.log(`Refund scheduled for order ${orderId} cancelled during payment`);
+          await this.ordersQueue.enqueueRefund(orderId);
+        }
         return;
       }
       throw error;
+    }
+  }
+
+  private replay(existing: OrderWithDetails, dto: CheckoutDto): CheckoutResult {
+    if (existing.shippingAddress !== dto.shippingAddress) {
+      throw new UnprocessableEntityException(
+        'Idempotency-Key was already used for a different request',
+      );
+    }
+    return { order: OrderDetailDto.fromEntity(existing), replayed: true };
+  }
+
+  async refundPayment(orderId: string): Promise<void> {
+    const order = await this.ordersRepository.findById(orderId);
+    if (!order?.paymentId || order.refundedAt || order.status !== OrderStatus.CANCELLED) {
+      this.logger.log(`Refund skipped for order ${orderId}: nothing to refund`);
+      return;
+    }
+    await this.payments.refund(order.id, order.paymentId);
+    if (await this.ordersRepository.markRefunded(order.id)) {
+      this.logger.log(
+        `Order refunded: ${order.id} tx=${order.paymentId} amount=${order.totalAmount}`,
+      );
     }
   }
 
@@ -210,7 +247,12 @@ export class OrdersService {
     userId: string,
     shippingAddress: string,
     idempotencyKey: string | null,
-  ): Promise<OrderWithDetails> {
+  ): Promise<{ order: OrderWithDetails; created: boolean }> {
+    await this.ordersRepository.lockCart(tx, userId);
+    if (idempotencyKey) {
+      const existing = await this.ordersRepository.findByIdempotencyKey(userId, idempotencyKey, tx);
+      if (existing) return { order: existing, created: false };
+    }
     const lines = await this.ordersRepository.findCartLines(tx, userId);
     if (lines.length === 0) throw new BadRequestException('Cart is empty');
 
@@ -262,11 +304,11 @@ export class OrdersService {
       })),
     });
     await this.ordersRepository.clearCart(tx, userId);
-    return order;
+    return { order, created: true };
   }
 
   private async transition(request: TransitionRequest): Promise<OrderWithDetails> {
-    const { orderId, to, actorId, note, expectedFrom } = request;
+    const { orderId, to, actorId, note, expectedFrom, paymentId } = request;
 
     const { order, from } = await this.ordersRepository.transaction(async (tx) => {
       const current = await this.ordersRepository.findById(orderId, tx);
@@ -282,7 +324,10 @@ export class OrdersService {
 
       const cancelReason = to === OrderStatus.CANCELLED ? note : null;
       if (
-        !(await this.ordersRepository.updateStatusIfCurrent(tx, orderId, from, to, cancelReason))
+        !(await this.ordersRepository.updateStatusIfCurrent(tx, orderId, from, to, {
+          cancelReason,
+          paymentId,
+        }))
       ) {
         throw new ConflictException('Order status was changed concurrently, please retry');
       }
@@ -306,6 +351,10 @@ export class OrdersService {
     );
     if (to === OrderStatus.CANCELLED) {
       await this.cache.invalidate('stock released by cancelled order');
+      if (order.paymentId && !order.refundedAt) {
+        this.logger.log(`Refund scheduled for cancelled paid order ${orderId}`);
+        await this.ordersQueue.enqueueRefund(orderId);
+      }
     }
     return order;
   }
@@ -344,8 +393,4 @@ export class OrdersService {
     if (!order || order.userId !== userId) throw new NotFoundException('Order not found');
     return order;
   }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }

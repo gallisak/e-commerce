@@ -111,12 +111,21 @@ export interface OrderStatusChange {
   createdAt: string;
 }
 
+export type PaymentStatus = 'PENDING' | 'PAID' | 'NOT_PAID' | 'REFUND_PENDING' | 'REFUNDED';
+
+export interface OrderPayment {
+  status: PaymentStatus;
+  transactionId: string | null;
+  refundedAt: string | null;
+}
+
 export interface OrderDetail {
   id: string;
   status: OrderStatus;
   totalAmount: number;
   shippingAddress: string;
   cancelReason: string | null;
+  payment: OrderPayment;
   customer: OrderCustomer;
   items: OrderItem[];
   statusHistory: OrderStatusChange[];

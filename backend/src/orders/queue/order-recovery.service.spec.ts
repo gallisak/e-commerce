@@ -6,8 +6,14 @@ import type { OrdersQueueService } from './orders-queue.service.js';
 
 describe('OrderRecoveryService', () => {
   const setup = (ids: string[]) => {
-    const repo = { findStaleNewOrderIds: vi.fn().mockResolvedValue(ids) };
-    const queue = { enqueueProcessing: vi.fn().mockResolvedValue(true) };
+    const repo = {
+      findStaleNewOrderIds: vi.fn().mockResolvedValue(ids),
+      findPendingRefundIds: vi.fn().mockResolvedValue([]),
+    };
+    const queue = {
+      enqueueProcessing: vi.fn().mockResolvedValue(true),
+      enqueueRefund: vi.fn().mockResolvedValue(true),
+    };
     const config = { get: () => 0 } as unknown as ConfigService<EnvironmentVariables, true>;
     const service = new OrderRecoveryService(
       repo as unknown as OrdersRepository,

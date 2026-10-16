@@ -34,13 +34,17 @@ export class OrderRecoveryService implements OnApplicationBootstrap, OnApplicati
     if (this.running) return 0;
     this.running = true;
     try {
-      const ids = await this.ordersRepository.findStaleNewOrderIds(
-        new Date(Date.now() - STALE_AFTER_MS),
-        BATCH_SIZE,
-      );
+      const staleBefore = new Date(Date.now() - STALE_AFTER_MS);
+      const ids = await this.ordersRepository.findStaleNewOrderIds(staleBefore, BATCH_SIZE);
       for (const id of ids) await this.ordersQueue.enqueueProcessing(id);
       if (ids.length > 0) this.logger.warn(`Re-enqueued ${ids.length} stale NEW order(s)`);
-      return ids.length;
+
+      const refundIds = await this.ordersRepository.findPendingRefundIds(staleBefore, BATCH_SIZE);
+      for (const id of refundIds) await this.ordersQueue.enqueueRefund(id);
+      if (refundIds.length > 0) {
+        this.logger.warn(`Re-enqueued ${refundIds.length} pending refund(s)`);
+      }
+      return ids.length + refundIds.length;
     } catch (error) {
       this.logger.error(`Order recovery failed: ${(error as Error).message}`);
       return 0;

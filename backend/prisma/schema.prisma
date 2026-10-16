@@ -124,6 +124,8 @@ model Order {
   shippingAddress String      @map("shipping_address")
   idempotencyKey  String?     @map("idempotency_key")
   cancelReason    String?     @map("cancel_reason")
+  paymentId       String?     @map("payment_id")
+  refundedAt      DateTime?   @map("refunded_at") @db.Timestamptz(3)
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 

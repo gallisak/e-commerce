@@ -52,6 +52,17 @@ export class OrdersRepository {
     return this.prisma.$transaction(fn, { maxWait: 10_000, timeout: 15_000 });
   }
 
+  async lockCart(tx: OrdersTransaction, userId: string): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "carts" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
+  }
+
+  async attachPayment(id: string, paymentId: string): Promise<void> {
+    await this.prisma.order.updateMany({
+      where: { id, paymentId: null },
+      data: { paymentId },
+    });
+  }
+
   findCartLines(tx: OrdersTransaction, userId: string): Promise<CartLine[]> {
     return tx.cartItem.findMany({
       where: { cart: { userId } },
@@ -121,8 +132,12 @@ export class OrdersRepository {
     return tx.order.findUnique({ where: { id }, include: orderDetailsInclude });
   }
 
-  findByIdempotencyKey(userId: string, idempotencyKey: string): Promise<OrderWithDetails | null> {
-    return this.prisma.order.findUnique({
+  findByIdempotencyKey(
+    userId: string,
+    idempotencyKey: string,
+    tx: OrdersTransaction = this.prisma,
+  ): Promise<OrderWithDetails | null> {
+    return tx.order.findUnique({
       where: { userId_idempotencyKey: { userId, idempotencyKey } },
       include: orderDetailsInclude,
     });
@@ -146,11 +161,23 @@ export class OrdersRepository {
     id: string,
     from: OrderStatus,
     to: OrderStatus,
-    cancelReason: string | null,
+    changes: { cancelReason: string | null; paymentId?: string },
   ): Promise<boolean> {
     const { count } = await tx.order.updateMany({
       where: { id, status: from },
-      data: { status: to, ...(to === OrderStatus.CANCELLED ? { cancelReason } : {}) },
+      data: {
+        status: to,
+        ...(to === OrderStatus.CANCELLED ? { cancelReason: changes.cancelReason } : {}),
+        ...(changes.paymentId ? { paymentId: changes.paymentId } : {}),
+      },
+    });
+    return count === 1;
+  }
+
+  async markRefunded(id: string): Promise<boolean> {
+    const { count } = await this.prisma.order.updateMany({
+      where: { id, paymentId: { not: null }, refundedAt: null },
+      data: { refundedAt: new Date() },
     });
     return count === 1;
   }
@@ -166,6 +193,21 @@ export class OrdersRepository {
     },
   ): Promise<void> {
     await tx.orderStatusHistory.create({ data: entry });
+  }
+
+  async findPendingRefundIds(olderThan: Date, limit: number): Promise<string[]> {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.CANCELLED,
+        paymentId: { not: null },
+        refundedAt: null,
+        updatedAt: { lt: olderThan },
+      },
+      select: { id: true },
+      orderBy: { updatedAt: 'asc' },
+      take: limit,
+    });
+    return orders.map((order) => order.id);
   }
 
   async findStaleNewOrderIds(olderThan: Date, limit: number): Promise<string[]> {

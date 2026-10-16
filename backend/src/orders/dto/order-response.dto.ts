@@ -48,6 +48,52 @@ export class OrderStatusHistoryDto {
   createdAt: Date;
 }
 
+export enum PaymentStatus {
+  Pending = 'PENDING',
+  Paid = 'PAID',
+  NotPaid = 'NOT_PAID',
+  RefundPending = 'REFUND_PENDING',
+  Refunded = 'REFUNDED',
+}
+
+export class OrderPaymentDto {
+  @ApiProperty({
+    enum: PaymentStatus,
+    enumName: 'PaymentStatus',
+    description:
+      'PENDING: waiting for the queue; NOT_PAID: cancelled before payment; REFUND_PENDING: cancelled after payment, refund queued',
+  })
+  status: PaymentStatus;
+
+  @ApiProperty({ type: String, nullable: true, description: 'Mock payment transaction id' })
+  transactionId: string | null;
+
+  @ApiProperty({ type: Date, nullable: true })
+  refundedAt: Date | null;
+
+  static fromEntity(
+    order: Pick<OrderWithDetails, 'status' | 'paymentId' | 'refundedAt'>,
+  ): OrderPaymentDto {
+    return {
+      status: paymentStatus(order),
+      transactionId: order.paymentId,
+      refundedAt: order.refundedAt,
+    };
+  }
+}
+
+function paymentStatus({
+  status,
+  paymentId,
+  refundedAt,
+}: Pick<OrderWithDetails, 'status' | 'paymentId' | 'refundedAt'>): PaymentStatus {
+  if (refundedAt) return PaymentStatus.Refunded;
+  if (!paymentId) {
+    return status === OrderStatus.NEW ? PaymentStatus.Pending : PaymentStatus.NotPaid;
+  }
+  return status === OrderStatus.CANCELLED ? PaymentStatus.RefundPending : PaymentStatus.Paid;
+}
+
 export class OrderSummaryDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -99,6 +145,9 @@ export class OrderDetailDto {
   @ApiProperty({ type: String, nullable: true })
   cancelReason: string | null;
 
+  @ApiProperty({ type: OrderPaymentDto })
+  payment: OrderPaymentDto;
+
   @ApiProperty({ type: OrderCustomerDto })
   customer: OrderCustomerDto;
 
@@ -121,6 +170,7 @@ export class OrderDetailDto {
       totalAmount: order.totalAmount,
       shippingAddress: order.shippingAddress,
       cancelReason: order.cancelReason,
+      payment: OrderPaymentDto.fromEntity(order),
       customer: order.user,
       items: order.items.map((item) => ({
         productId: item.productId,

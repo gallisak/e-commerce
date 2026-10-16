@@ -64,6 +64,9 @@ export const myOrderQuery = (id: string) =>
   queryOptions({
     queryKey: orderKeys.detail(id),
     queryFn: ({ signal }) => ordersApi.getMine(id, signal),
-    refetchInterval: (query) =>
-      query.state.data?.status === 'NEW' ? PENDING_PAYMENT_POLL_MS : false,
+    refetchInterval: (query) => (needsPolling(query.state.data) ? PENDING_PAYMENT_POLL_MS : false),
   });
+
+export function needsPolling(order: OrderDetail | undefined): boolean {
+  return order?.status === 'NEW' || order?.payment.status === 'REFUND_PENDING';
+}

@@ -1,5 +1,5 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query';
-import { PENDING_PAYMENT_POLL_MS } from '@/features/orders/api';
+import { needsPolling, PENDING_PAYMENT_POLL_MS } from '@/features/orders/api';
 import { api } from '@/lib/api/client';
 import type { OrderDetail, OrderStatus, OrderSummary, Paginated } from '@/lib/api/types';
 import { addDays } from '@/lib/dates';
@@ -67,6 +67,5 @@ export const adminOrderQuery = (id: string) =>
   queryOptions({
     queryKey: adminKeys.order(id),
     queryFn: ({ signal }) => adminOrdersApi.get(id, signal),
-    refetchInterval: (query) =>
-      query.state.data?.status === 'NEW' ? PENDING_PAYMENT_POLL_MS : false,
+    refetchInterval: (query) => (needsPolling(query.state.data) ? PENDING_PAYMENT_POLL_MS : false),
   });

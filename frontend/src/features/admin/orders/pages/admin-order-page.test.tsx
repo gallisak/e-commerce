@@ -136,7 +136,8 @@ describe('AdminOrderPage', () => {
   it('waits for the payment of a new order', async () => {
     restore = setup(() => ({ status: 200, data: order() })).restore;
     expect(await screen.findByText('Waiting for the payment to be processed…')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mark as processing' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as processing' })).not.toBeInTheDocument();
   });
 
   it('shows not found', async () => {

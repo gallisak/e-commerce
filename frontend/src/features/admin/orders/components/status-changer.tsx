@@ -14,8 +14,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { catalogKeys } from '@/features/catalog/api';
 import { orderKeys } from '@/features/orders/api';
-import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS } from '@/features/orders/order-status';
+import { ORDER_STATUS_LABELS, ADMIN_TRANSITIONS } from '@/features/orders/order-status';
 import { errorMessage } from '@/lib/api/errors';
+import { formatPrice } from '@/lib/format';
 import type { OrderDetail, OrderStatus } from '@/lib/api/types';
 import { adminKeys, adminOrdersApi } from '../api';
 
@@ -24,8 +25,9 @@ const SINGLE_LINE = /^[^\p{Cc}]*$/u;
 
 export function StatusChanger({ order }: { order: OrderDetail }) {
   const queryClient = useQueryClient();
-  const options = ORDER_TRANSITIONS[order.status];
-  const [next, setNext] = useState<OrderStatus>(options[0] ?? order.status);
+  const options = ADMIN_TRANSITIONS[order.status];
+  const [choice, setNext] = useState<OrderStatus>(options[0] ?? order.status);
+  const next = options.includes(choice) ? choice : (options[0] ?? order.status);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +128,11 @@ export function StatusChanger({ order }: { order: OrderDetail }) {
             </Button>
           }
           title="Cancel this order?"
-          description="The reserved items return to stock. This cannot be undone."
+          description={
+            order.payment.status === 'PAID'
+              ? `The reserved items return to stock and the payment of ${formatPrice(order.totalAmount)} is refunded. This cannot be undone.`
+              : 'The reserved items return to stock. This cannot be undone.'
+          }
           confirmLabel="Cancel order"
           pendingLabel="Cancelling…"
           cancelLabel="Keep order"
