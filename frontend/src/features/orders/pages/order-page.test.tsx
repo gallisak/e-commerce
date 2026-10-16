@@ -130,6 +130,49 @@ describe('OrderPage', () => {
     expect(screen.queryByRole('button', { name: 'Cancel order' })).not.toBeInTheDocument();
   });
 
+  it('shows the payment and follows the refund of a cancelled paid order', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const cancelled = order({ status: 'CANCELLED', cancelReason: 'Supplier cannot deliver' });
+      let current: OrderDetail = {
+        ...cancelled,
+        payment: { status: 'REFUND_PENDING', transactionId: 'mock_tx', refundedAt: null },
+      };
+      restore = setup(() => ({ status: 200, data: current })).restore;
+
+      expect(await screen.findByText('Refund in progress')).toBeInTheDocument();
+      expect(screen.getByText(/Your payment of ₴1,198.00 is being refunded/)).toBeInTheDocument();
+      expect(screen.getByText('mock_tx')).toBeInTheDocument();
+
+      current = {
+        ...cancelled,
+        payment: {
+          status: 'REFUNDED',
+          transactionId: 'mock_tx',
+          refundedAt: '2026-10-10T10:00:00.000Z',
+        },
+      };
+      await vi.advanceTimersByTimeAsync(2_100);
+
+      expect(await screen.findByText('Refunded')).toBeInTheDocument();
+      expect(screen.getByText(/has been refunded/)).toBeInTheDocument();
+      expect(screen.getByText(/Refunded on/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a paid order as paid', async () => {
+    restore = setup(() => ({
+      status: 200,
+      data: {
+        ...processing,
+        payment: { status: 'PAID', transactionId: 'mock_1', refundedAt: null },
+      },
+    })).restore;
+    expect(await screen.findByText('Paid')).toBeInTheDocument();
+  });
+
   it('shows not found for foreign or missing orders', async () => {
     restore = setup(() => ({ status: 404, data: errorBody(404, 'Order not found') })).restore;
     expect(await screen.findByText('Order not found')).toBeInTheDocument();

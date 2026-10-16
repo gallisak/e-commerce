@@ -1,5 +1,9 @@
 import type { Queue } from 'bullmq';
-import { PROCESS_ORDER_JOB, type ProcessOrderJobData } from './orders-queue.constants.js';
+import {
+  PROCESS_ORDER_JOB,
+  type ProcessOrderJobData,
+  REFUND_ORDER_JOB,
+} from './orders-queue.constants.js';
 import { ENQUEUE_TIMEOUT_MS, OrdersQueueService } from './orders-queue.service.js';
 
 describe('OrdersQueueService', () => {
@@ -26,6 +30,18 @@ describe('OrdersQueueService', () => {
     );
   });
 
+  it('adds a refund job with its own id so it does not clash with processing', async () => {
+    const queue = makeQueue();
+    await expect(create(queue).enqueueRefund('order-1')).resolves.toBe(true);
+
+    expect(queue.getJob).toHaveBeenCalledWith('refund-order-1');
+    expect(queue.add).toHaveBeenCalledWith(
+      REFUND_ORDER_JOB,
+      { orderId: 'order-1' },
+      expect.objectContaining({ jobId: 'refund-order-1', attempts: 3 }),
+    );
+  });
+
   it('does not duplicate a job that is already queued', async () => {
     const queue = makeQueue({ isFailed: vi.fn().mockResolvedValue(false), retry: vi.fn() });
     await create(queue).enqueueProcessing('order-1');
@@ -47,11 +63,27 @@ describe('OrdersQueueService', () => {
   });
 
   it('gives up after a timeout instead of blocking checkout when Redis hangs', async () => {
-    const queue = makeQueue();
-    queue.getJob.mockReturnValue(new Promise(() => undefined));
+    vi.useFakeTimers();
+    try {
+      const queue = makeQueue();
+      queue.getJob.mockReturnValue(new Promise(() => undefined));
 
-    const startedAt = Date.now();
-    await expect(create(queue).enqueueProcessing('order-1')).resolves.toBe(false);
-    expect(Date.now() - startedAt).toBeLessThan(ENQUEUE_TIMEOUT_MS + 500);
+      const result = create(queue).enqueueProcessing('order-1');
+      await vi.advanceTimersByTimeAsync(ENQUEUE_TIMEOUT_MS);
+
+      await expect(result).resolves.toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not leave the timeout timer running after a successful enqueue', async () => {
+    vi.useFakeTimers();
+    try {
+      await create(makeQueue()).enqueueProcessing('order-1');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

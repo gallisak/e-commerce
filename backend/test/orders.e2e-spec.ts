@@ -103,6 +103,8 @@ describe('Orders (e2e)', () => {
       'PROCESSING',
     ]);
     expect(processed.statusHistory[1]).toMatchObject({ byUser: false });
+    expect(processed.payment).toMatchObject({ status: 'PAID', refundedAt: null });
+    expect(processed.payment.transactionId).toMatch(/^mock_/);
 
     await admin
       .patch(`/api/admin/orders/${placed.body.id}/status`)
@@ -216,7 +218,31 @@ describe('Orders (e2e)', () => {
     expect(replay.headers['idempotent-replayed']).toBe('true');
     expect(replay.body.id).toBe(a.body.id);
 
+    await customer
+      .post('/api/orders')
+      .set('Idempotency-Key', key)
+      .send({ shippingAddress: 'Lviv, Svobody Ave 1' })
+      .expect(422);
     await customer.post('/api/orders').set('Idempotency-Key', 'bad key!').send(ADDRESS).expect(400);
+  });
+
+  it('turns parallel checkouts of the same cart into a single order', async () => {
+    const customer = await newCustomer();
+    const product = await catalog.createProduct('Double Click', 1_000, 5);
+    await customer.post('/api/cart/items').send({ productId: product.id, quantity: 1 }).expect(200);
+
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => customer.post('/api/orders').send(ADDRESS)),
+    );
+
+    expect(results.map((r) => r.status).sort((x, y) => x - y)).toEqual([201, 400, 400, 400]);
+    expect(results.filter((r) => r.status === 400).map((r) => r.body.message)).toEqual([
+      'Cart is empty',
+      'Cart is empty',
+      'Cart is empty',
+    ]);
+    expect(await stockOf(product.id)).toBe(4);
+    expect((await customer.get('/api/orders').expect(200)).body.meta.total).toBe(1);
   });
 
   it('enforces the status workflow for admins and customers', async () => {
@@ -230,6 +256,10 @@ describe('Orders (e2e)', () => {
     await admin
       .patch(`/api/admin/orders/${placed.body.id}/status`)
       .send({ status: 'COMPLETED' })
+      .expect(409);
+    await admin
+      .patch(`/api/admin/orders/${placed.body.id}/status`)
+      .send({ status: 'PROCESSING' })
       .expect(409);
     await admin
       .patch(`/api/admin/orders/${placed.body.id}/status`)
@@ -251,6 +281,37 @@ describe('Orders (e2e)', () => {
       .patch(`/api/admin/orders/${placed.body.id}/status`)
       .send({ status: 'SHIPPED' })
       .expect(409);
+  });
+
+  it('refunds the payment when an admin cancels a paid order', async () => {
+    const customer = await newCustomer();
+    const product = await catalog.createProduct('Refundable', 2_500, 3);
+    await customer.post('/api/cart/items').send({ productId: product.id, quantity: 2 }).expect(200);
+    const placed = await customer.post('/api/orders').send(ADDRESS).expect(201);
+    expect(placed.body.payment).toEqual({
+      status: 'PENDING',
+      transactionId: null,
+      refundedAt: null,
+    });
+    const paid = await waitForStatus(customer, placed.body.id, 'PROCESSING');
+
+    const cancelled = await admin
+      .patch(`/api/admin/orders/${placed.body.id}/status`)
+      .send({ status: 'CANCELLED', note: 'Supplier cannot deliver' })
+      .expect(200);
+    expect(cancelled.body.payment.transactionId).toBe(paid.payment.transactionId);
+    expect(['REFUND_PENDING', 'REFUNDED']).toContain(cancelled.body.payment.status);
+    expect(await stockOf(product.id)).toBe(3);
+
+    const refunded = await waitFor(
+      async () => (await customer.get(`/api/orders/${placed.body.id}`)).body,
+      (order) => order.payment.status === 'REFUNDED',
+    );
+    expect(Date.parse(refunded.payment.refundedAt)).toBeGreaterThanOrEqual(
+      Date.parse(cancelled.body.updatedAt),
+    );
+    const stored = await ctx.prisma.order.findUniqueOrThrow({ where: { id: placed.body.id } });
+    expect(stored.refundedAt).not.toBeNull();
   });
 
   it('protects orders from other users and handles missing ones', async () => {

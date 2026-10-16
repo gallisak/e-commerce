@@ -5,10 +5,10 @@ import { OrderRecoveryService } from './order-recovery.service.js';
 import type { OrdersQueueService } from './orders-queue.service.js';
 
 describe('OrderRecoveryService', () => {
-  const setup = (ids: string[]) => {
+  const setup = (ids: string[], refundIds: string[] = []) => {
     const repo = {
       findStaleNewOrderIds: vi.fn().mockResolvedValue(ids),
-      findPendingRefundIds: vi.fn().mockResolvedValue([]),
+      findPendingRefundIds: vi.fn().mockResolvedValue(refundIds),
     };
     const queue = {
       enqueueProcessing: vi.fn().mockResolvedValue(true),
@@ -31,6 +31,17 @@ describe('OrderRecoveryService', () => {
     const [olderThan] = repo.findStaleNewOrderIds.mock.calls[0] as [Date];
     expect(Date.now() - olderThan.getTime()).toBeGreaterThanOrEqual(2 * 60 * 1000 - 1000);
     expect(queue.enqueueProcessing.mock.calls).toEqual([['o-1'], ['o-2']]);
+  });
+
+  it('re-enqueues refunds that were not completed', async () => {
+    const { repo, queue, service } = setup([], ['o-3']);
+
+    await expect(service.requeueStaleOrders()).resolves.toBe(1);
+
+    const [olderThan] = repo.findPendingRefundIds.mock.calls[0] as [Date];
+    expect(Date.now() - olderThan.getTime()).toBeGreaterThanOrEqual(2 * 60 * 1000 - 1000);
+    expect(queue.enqueueRefund).toHaveBeenCalledWith('o-3');
+    expect(queue.enqueueProcessing).not.toHaveBeenCalled();
   });
 
   it('does nothing when the interval is disabled', () => {

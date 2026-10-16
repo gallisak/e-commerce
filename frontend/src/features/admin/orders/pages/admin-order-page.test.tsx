@@ -109,6 +109,23 @@ describe('AdminOrderPage', () => {
     expect(screen.getAllByText('Out of stock').length).toBeGreaterThan(0);
   });
 
+  it('warns that cancelling a paid order refunds the payment', async () => {
+    const paid: OrderDetail = {
+      ...withStatus('PROCESSING'),
+      payment: { status: 'PAID', transactionId: 'mock_1', refundedAt: null },
+    };
+    restore = setup(() => ({ status: 200, data: paid })).restore;
+
+    expect(await screen.findByText('Paid')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('combobox', { name: 'New status' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Cancelled' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel order' }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      'The reserved items return to stock and the payment of ₴1,198.00 is refunded.',
+    );
+  });
+
   it('reports a conflict and reloads the order', async () => {
     let current = withStatus('PROCESSING');
     const mock = setup((config) => {

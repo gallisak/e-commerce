@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/types/auth-user.js';
 import type { CatalogCacheService } from '../catalog-cache/catalog-cache.service.js';
@@ -116,6 +121,15 @@ describe('OrdersService', () => {
   });
 
   describe('checkout: stock reservation', () => {
+    it('locks the cart before reading it so parallel checkouts cannot both order it', async () => {
+      await service.checkout(customer, { shippingAddress: 'Kyiv' });
+
+      expect(repo.lockCart).toHaveBeenCalledWith(TX, customer.id);
+      expect(repo.lockCart.mock.invocationCallOrder[0]).toBeLessThan(
+        repo.findCartLines.mock.invocationCallOrder[0],
+      );
+    });
+
     it('reserves every line inside one transaction and snapshots prices', async () => {
       const result = await service.checkout(customer, { shippingAddress: 'Kyiv' });
 
@@ -205,6 +219,27 @@ describe('OrdersService', () => {
   });
 
   describe('checkout: idempotency', () => {
+    it('replays an order committed by a parallel request while waiting for the cart lock', async () => {
+      repo.findByIdempotencyKey
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(makeOrder({ id: 'first', shippingAddress: 'Kyiv' }));
+
+      const result = await service.checkout(customer, { shippingAddress: 'Kyiv' }, 'key-12345');
+
+      expect(result).toMatchObject({ replayed: true, order: { id: 'first' } });
+      expect(repo.findCartLines).not.toHaveBeenCalled();
+      expect(repo.createOrder).not.toHaveBeenCalled();
+      expect(queue.enqueueProcessing).not.toHaveBeenCalled();
+    });
+
+    it('rejects a reused key with a different payload', async () => {
+      repo.findByIdempotencyKey.mockResolvedValue(makeOrder({ shippingAddress: 'Kyiv' }));
+
+      await expect(
+        service.checkout(customer, { shippingAddress: 'Lviv' }, 'key-12345'),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
     it('returns the existing order for a repeated key without reserving stock', async () => {
       repo.findByIdempotencyKey.mockResolvedValue(makeOrder({ idempotencyKey: 'key-12345' }));
 
@@ -363,6 +398,69 @@ describe('OrdersService', () => {
       repo.findById.mockResolvedValue(null);
       await expect(service.processPayment('missing')).resolves.toBeUndefined();
       expect(payments.charge).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refunds', () => {
+    const paidOrder = (overrides: Partial<OrderWithDetails> = {}) =>
+      makeOrder({ status: OrderStatus.PROCESSING, paymentId: 'tx-1', ...overrides });
+
+    it('does not let an admin mark an order as processing without a payment', async () => {
+      await expect(
+        service.changeStatusByAdmin(admin, 'order-1', OrderStatus.PROCESSING),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.updateStatusIfCurrent).not.toHaveBeenCalled();
+    });
+
+    it('schedules a refund when an admin cancels a paid order', async () => {
+      repo.findById.mockResolvedValue(paidOrder());
+
+      await service.changeStatusByAdmin(admin, 'order-1', OrderStatus.CANCELLED);
+
+      expect(repo.releaseStock).toHaveBeenCalled();
+      expect(queue.enqueueRefund).toHaveBeenCalledWith('order-1');
+    });
+
+    it('does not schedule a refund for an unpaid order', async () => {
+      await service.changeStatusByAdmin(admin, 'order-1', OrderStatus.CANCELLED);
+      expect(queue.enqueueRefund).not.toHaveBeenCalled();
+    });
+
+    it('does not schedule a refund for other transitions of a paid order', async () => {
+      repo.findById.mockResolvedValue(paidOrder());
+      await service.changeStatusByAdmin(admin, 'order-1', OrderStatus.SHIPPED);
+      expect(queue.enqueueRefund).not.toHaveBeenCalled();
+    });
+
+    it('refunds a cancelled paid order once and marks it refunded', async () => {
+      repo.findById.mockResolvedValue(paidOrder({ status: OrderStatus.CANCELLED }));
+
+      await service.refundPayment('order-1');
+
+      expect(payments.refund).toHaveBeenCalledWith('order-1', 'tx-1');
+      expect(repo.markRefunded).toHaveBeenCalledWith('order-1');
+    });
+
+    it.each([
+      ['unknown order', null],
+      ['never paid', makeOrder({ status: OrderStatus.CANCELLED })],
+      ['already refunded', paidOrder({ status: OrderStatus.CANCELLED, refundedAt: new Date() })],
+      ['not cancelled', paidOrder()],
+    ])('skips the refund for an order that is %s', async (_case, order) => {
+      repo.findById.mockResolvedValue(order);
+
+      await service.refundPayment('order-1');
+
+      expect(payments.refund).not.toHaveBeenCalled();
+      expect(repo.markRefunded).not.toHaveBeenCalled();
+    });
+
+    it('lets the queue retry when the payment provider fails', async () => {
+      repo.findById.mockResolvedValue(paidOrder({ status: OrderStatus.CANCELLED }));
+      payments.refund.mockRejectedValue(new Error('gateway timeout'));
+
+      await expect(service.refundPayment('order-1')).rejects.toThrow('gateway timeout');
+      expect(repo.markRefunded).not.toHaveBeenCalled();
     });
   });
 
