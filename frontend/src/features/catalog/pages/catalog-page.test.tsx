@@ -168,6 +168,20 @@ describe('CatalogPage', () => {
     expect(productRequests()).toHaveLength(0);
   });
 
+  it('does not drop the category filter when categories fail to load', async () => {
+    const mock = mockApi((config) =>
+      config.url === '/categories'
+        ? { status: 500, data: errorBody(500, 'boom') }
+        : { status: 200, data: page(products) },
+    );
+    restore = mock.restore;
+    renderRoutes(routes, { path: '/?category=books' });
+
+    expect(await screen.findByText('Could not load categories')).toBeInTheDocument();
+    expect(mock.calls.filter((call) => call.url === '/products')).toHaveLength(0);
+    expect(screen.queryByRole('article')).not.toBeInTheDocument();
+  });
+
   it('shows the error with a request id and retries on demand', async () => {
     let fail = true;
     const { mock } = setup('/', () =>

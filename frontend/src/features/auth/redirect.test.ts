@@ -17,6 +17,8 @@ describe('safeRedirectPath', () => {
     'javascript:alert(1)',
     '/login',
     '/register?redirect=/x',
+    '/.//evil.example',
+    '/a/..//evil.example',
   ])('falls back for %s', (input) => {
     expect(safeRedirectPath(input, '/home')).toBe('/home');
   });

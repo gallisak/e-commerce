@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router';
+import { Toaster } from 'sonner';
 import { createQueryClient } from '@/app/query-client';
 import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context';
 import type { User } from '@/lib/api/types';
@@ -44,6 +45,7 @@ export function renderRoutes(
     <QueryClientProvider client={createQueryClient()}>
       <AuthContext value={auth}>
         <RouterProvider router={router} />
+        <Toaster />
       </AuthContext>
     </QueryClientProvider>,
   );
