@@ -5,6 +5,8 @@ import { RequireAdmin } from '@/features/auth/components/guards';
 import {
   AdminCategoriesPage,
   AdminLayout,
+  AdminOrderPage,
+  AdminOrdersPage,
   AdminProductsPage,
   DashboardPage,
   EditProductPage,
@@ -22,6 +24,8 @@ export const adminRoute: RouteObject = {
   ),
   children: [
     { index: true, element: <DashboardPage /> },
+    { path: 'orders', element: <AdminOrdersPage /> },
+    { path: 'orders/:orderId', element: <AdminOrderPage /> },
     { path: 'products', element: <AdminProductsPage /> },
     { path: 'products/new', element: <NewProductPage /> },
     { path: 'products/:productId/edit', element: <EditProductPage /> },

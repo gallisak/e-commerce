@@ -20,3 +20,9 @@ export const AdminCategoriesPage = lazy(() =>
     default: m.AdminCategoriesPage,
   })),
 );
+export const AdminOrdersPage = lazy(() =>
+  import('./orders/pages/admin-orders-page').then((m) => ({ default: m.AdminOrdersPage })),
+);
+export const AdminOrderPage = lazy(() =>
+  import('./orders/pages/admin-order-page').then((m) => ({ default: m.AdminOrderPage })),
+);

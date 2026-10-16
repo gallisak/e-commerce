@@ -1,4 +1,4 @@
-import { LayoutDashboardIcon, PackageIcon, TagsIcon } from 'lucide-react';
+import { LayoutDashboardIcon, PackageIcon, ReceiptTextIcon, TagsIcon } from 'lucide-react';
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { PageLoader } from '@/components/feedback/page-loader';
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
+  { to: '/admin/orders', label: 'Orders', icon: ReceiptTextIcon, end: false },
   { to: '/admin/products', label: 'Products', icon: PackageIcon, end: false },
   { to: '/admin/categories', label: 'Categories', icon: TagsIcon, end: false },
 ];

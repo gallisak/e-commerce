@@ -12,6 +12,22 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
     },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'react',
+                test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/,
+                priority: 2,
+              },
+              { name: 'vendor', test: /node_modules[\\/]/, tags: ['$initial'], priority: 1 },
+            ],
+          },
+        },
+      },
+    },
     server: {
       host: true,
       port: 5173,

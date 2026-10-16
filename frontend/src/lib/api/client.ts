@@ -1,4 +1,4 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
+import axios, { type InternalAxiosRequestConfig, isAxiosError } from 'axios';
 import { toApiError } from './errors';
 import { session } from './session';
 import { sessionHint } from './session-hint';
@@ -28,6 +28,17 @@ api.interceptors.request.use((config) => {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
   return config;
+});
+
+api.interceptors.response.use(undefined, async (error: unknown) => {
+  const data = isAxiosError(error) ? error.response?.data : undefined;
+  if (isAxiosError(error) && error.response && data instanceof Blob && data.type.includes('json')) {
+    error.response.data = await data
+      .text()
+      .then(JSON.parse)
+      .catch(() => data);
+  }
+  throw error;
 });
 
 api.interceptors.response.use(undefined, async (error: unknown) => {

@@ -18,6 +18,14 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 
 export const CUSTOMER_CANCELLABLE: readonly OrderStatus[] = ['NEW'];
 
+export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  NEW: ['PROCESSING', 'CANCELLED'],
+  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['COMPLETED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
 export function isOrderStatus(value: string | null): value is OrderStatus {
   return value !== null && (ORDER_STATUSES as readonly string[]).includes(value);
 }
