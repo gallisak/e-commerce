@@ -1,0 +1,14 @@
+import type { StorybookConfig } from '@storybook/react-vite';
+
+const config: StorybookConfig = {
+  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
+  addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
+  framework: { name: '@storybook/react-vite', options: {} },
+  core: { disableTelemetry: true },
+  viteFinal: (viteConfig) => ({
+    ...viteConfig,
+    build: { ...viteConfig.build, chunkSizeWarningLimit: 1500 },
+  }),
+};
+
+export default config;

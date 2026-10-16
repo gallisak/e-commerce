@@ -29,7 +29,7 @@ export function ErrorState({
           ))}
         </ul>
         {apiError.requestId && (
-          <p className="mt-2 text-xs opacity-80">
+          <p className="mt-2 text-xs">
             Reference: <code className="font-mono">{apiError.requestId}</code>
           </p>
         )}

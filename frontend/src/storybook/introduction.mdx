@@ -1,0 +1,21 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+# Mini Marketplace UI
+
+Key building blocks of the storefront and the admin panel, rendered in isolation from the app.
+
+- **UI** — buttons, pagination and the confirmation dialog.
+- **Catalog** — product card and stock badge.
+- **Cart** — quantity stepper and cart line with stock issues.
+- **Orders** — order status badge.
+- **Forms** — login, registration, checkout, product and category forms with validation and server errors.
+- **Feedback** — empty, error and loading states.
+- **Admin** — dashboard key figures, sales chart and top products.
+
+Stories do not need the backend: API calls are answered by mocks defined in each story's
+parameters, and the toolbar switches between the light and dark themes.
+
+Run it with `npm run storybook -w frontend` (port 6006) or build a static version with
+`npm run build-storybook -w frontend`.
