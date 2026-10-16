@@ -111,4 +111,19 @@ describe('api client', () => {
 
     expect(request).toHaveBeenCalledWith(REFRESH_LOCK_NAME, expect.any(Function));
   });
+
+  it('reads JSON error bodies of blob downloads', async () => {
+    session.signIn(user, 'token-1');
+    mock = mockApi(() => ({
+      status: 400,
+      data: new Blob([JSON.stringify(errorBody(400, 'Date range must not exceed 366 days'))], {
+        type: 'application/json',
+      }),
+    }));
+
+    const error = await api.get('/report.csv', { responseType: 'blob' }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).messages).toEqual(['Date range must not exceed 366 days']);
+  });
 });
