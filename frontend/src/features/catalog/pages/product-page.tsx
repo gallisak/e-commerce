@@ -5,19 +5,19 @@ import { ButtonLink } from '@/components/button-link';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AddToCart } from '@/features/cart/components/add-to-cart';
 import { toApiError } from '@/lib/api/errors';
 import { formatPrice } from '@/lib/format';
+import { isUuid } from '@/lib/ids';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { productQuery } from '../api';
 import { catalogHref } from '../catalog-params';
 import { ProductImage } from '../components/product-image';
 import { StockBadge } from '../components/stock-badge';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function ProductPage() {
   const { productId = '' } = useParams();
-  const validId = UUID_PATTERN.test(productId);
+  const validId = isUuid(productId);
   const product = useQuery({ ...productQuery(productId), enabled: validId });
   useDocumentTitle(product.data?.name ?? (validId ? null : 'Product not found'));
 
@@ -38,7 +38,7 @@ export function ProductPage() {
     );
   }
 
-  if (product.isError) {
+  if (product.isError && !product.data) {
     return (
       <ErrorState
         error={product.error}
@@ -97,6 +97,7 @@ export function ProductPage() {
             <p className="text-2xl font-semibold tabular-nums">{formatPrice(price)}</p>
             <StockBadge stock={stock} />
           </div>
+          <AddToCart product={product.data} />
           {description ? (
             <p className="leading-relaxed whitespace-pre-line text-muted-foreground">
               {description}

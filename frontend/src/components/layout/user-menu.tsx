@@ -32,7 +32,7 @@ export function UserMenu({ user }: { user: User }) {
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" aria-label="Account menu" />}>
         <UserIcon data-icon="inline-start" />
-        <span className="max-w-32 truncate">{user.name}</span>
+        <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>

@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router';
 import { ButtonLink } from '@/components/button-link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/features/auth/use-auth';
+import { CartButton } from '@/features/cart/components/cart-button';
 import { cn } from '@/lib/utils';
 import { UserMenu } from './user-menu';
 
@@ -17,7 +18,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:gap-4">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 sm:gap-4">
         <Link
           to="/"
           aria-label="Mini Marketplace home"
@@ -36,7 +37,7 @@ export function SiteHeader() {
             </NavLink>
           )}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1 sm:gap-2">
           {status === 'pending' && <Skeleton className="h-7 w-24" />}
           {status === 'anonymous' && (
             <>
@@ -48,7 +49,12 @@ export function SiteHeader() {
               </ButtonLink>
             </>
           )}
-          {status === 'authenticated' && user && <UserMenu user={user} />}
+          {status === 'authenticated' && user && (
+            <>
+              <CartButton />
+              <UserMenu user={user} />
+            </>
+          )}
         </div>
       </div>
     </header>

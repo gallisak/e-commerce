@@ -8,6 +8,7 @@ export function safeRedirectPath(value: string | null | undefined, fallback = '/
     const url = new URL(value, 'http://localhost');
     if (url.origin !== 'http://localhost') return fallback;
     const path = `${url.pathname}${url.search}${url.hash}`;
+    if (path.startsWith('//')) return fallback;
     return path.startsWith('/login') || path.startsWith('/register') ? fallback : path;
   } catch {
     return fallback;

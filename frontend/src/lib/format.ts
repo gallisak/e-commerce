@@ -17,3 +17,12 @@ export function formatPrice(kopecks: number): string {
 export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
+
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+export function formatDateTime(value: string | Date): string {
+  return dateTimeFormatter.format(new Date(value));
+}

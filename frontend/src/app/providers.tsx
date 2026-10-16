@@ -7,7 +7,7 @@ export function AppProviders({ client, children }: { client: QueryClient; childr
   return (
     <QueryClientProvider client={client}>
       <AuthProvider>{children}</AuthProvider>
-      <Toaster position="top-right" richColors closeButton />
+      <Toaster position="bottom-right" richColors closeButton />
     </QueryClientProvider>
   );
 }

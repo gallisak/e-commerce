@@ -30,6 +30,7 @@ export function CatalogPage() {
     : undefined;
   const unknownCategory = Boolean(filters.category && categories.isSuccess && !category);
   const waitingForCategory = Boolean(filters.category && categories.isPending);
+  const categoryFailed = Boolean(filters.category && categories.isError && !categories.data);
   useDocumentTitle(category?.name ?? null);
 
   const products = useQuery({
@@ -41,7 +42,7 @@ export function CatalogPage() {
       maxPrice: filters.maxPrice === null ? undefined : filters.maxPrice * 100,
       sort: filters.sort,
     }),
-    enabled: !waitingForCategory && !unknownCategory,
+    enabled: !waitingForCategory && !unknownCategory && !categoryFailed,
   });
 
   const meta = products.data?.meta;
@@ -108,7 +109,13 @@ export function CatalogPage() {
               : ' '}
           </p>
 
-          {unknownCategory ? (
+          {categoryFailed ? (
+            <ErrorState
+              error={categories.error}
+              title="Could not load categories"
+              onRetry={() => categories.refetch()}
+            />
+          ) : unknownCategory ? (
             <EmptyState
               icon={PackageSearchIcon}
               title="Category not found"
