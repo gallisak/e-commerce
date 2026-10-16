@@ -10,7 +10,9 @@ RUN --mount=type=cache,target=/root/.npm npm ci -w backend --include-workspace-r
 COPY backend/ backend/
 RUN npm run build -w backend \
  && npm prune --omit=dev -w backend --include-workspace-root=false \
- && rm -rf backend/src backend/test
+ && rm -rf backend/src backend/test backend/tsconfig*.json backend/*.tsbuildinfo \
+    backend/vitest.config*.ts backend/nest-cli.json backend/Dockerfile backend/.oxlintrc.json \
+    backend/.env.example backend/.gitignore
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production \

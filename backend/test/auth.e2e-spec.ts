@@ -64,6 +64,7 @@ describe('Auth (e2e)', () => {
       .set('Cookie', firstCookie)
       .expect(200);
     const retriedCookie = refreshCookieFrom(retried);
+    await request(server).post('/api/auth/refresh').set('Cookie', firstCookie).expect(401);
 
     await ctx.prisma.refreshToken.updateMany({
       where: { user: { email }, revokedAt: { not: null } },

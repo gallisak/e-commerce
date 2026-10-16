@@ -24,6 +24,14 @@ export class RefreshTokenRepository {
     return count === 1;
   }
 
+  async consumeReuseGrace(id: string): Promise<boolean> {
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { id, revokedAt: { not: null }, graceUsedAt: null },
+      data: { graceUsedAt: new Date() },
+    });
+    return count === 1;
+  }
+
   async deleteById(id: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({ where: { id } });
   }

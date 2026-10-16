@@ -119,7 +119,13 @@ export class ProductsService {
     const existing = await this.getOrThrow(id);
 
     const imageUrl = await this.imageStorage.saveProductImage(file.buffer);
-    const product = await this.productsRepository.update(id, { imageUrl });
+    let product: ProductWithCategory;
+    try {
+      product = await this.productsRepository.update(id, { imageUrl });
+    } catch (error) {
+      await this.imageStorage.removeIfLocal(imageUrl);
+      throw error;
+    }
     await this.imageStorage.removeIfLocal(existing.imageUrl);
 
     this.logger.log(`Product image uploaded: ${id} -> ${imageUrl}`);

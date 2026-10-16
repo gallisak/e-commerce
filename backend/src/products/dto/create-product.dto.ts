@@ -60,7 +60,7 @@ export class CreateProductDto {
   })
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   @MaxLength(2048)
   imageUrl?: string | null;
 }

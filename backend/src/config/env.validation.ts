@@ -59,6 +59,11 @@ export class EnvironmentVariables {
   @IsInt()
   REDIS_PORT: number = 6379;
 
+  @IsInt()
+  @Min(0)
+  @Max(15)
+  REDIS_DB: number = 0;
+
   @IsString()
   @Matches(/^[a-z0-9-]+$/)
   QUEUE_PREFIX: string = 'bull';
@@ -82,6 +87,9 @@ export class EnvironmentVariables {
   @IsBoolean()
   COOKIE_SECURE: boolean = false;
 
+  @IsBoolean()
+  DEMO_MODE: boolean = false;
+
   @IsInt()
   @Min(0)
   @Max(5)
@@ -95,7 +103,7 @@ export class EnvironmentVariables {
 
   @IsInt()
   @Min(1)
-  @Max(50)
+  @Max(5)
   UPLOAD_MAX_FILE_SIZE_MB: number = 5;
 
   @IsInt()
@@ -139,13 +147,35 @@ export class EnvironmentVariables {
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
   const validated = plainToInstance(
     EnvironmentVariables,
-    { ...config, COOKIE_SECURE: config.COOKIE_SECURE === 'true' || config.COOKIE_SECURE === true },
+    {
+      ...config,
+      COOKIE_SECURE: config.COOKIE_SECURE === 'true' || config.COOKIE_SECURE === true,
+      DEMO_MODE: config.DEMO_MODE === 'true' || config.DEMO_MODE === true,
+    },
     { enableImplicitConversion: true },
   );
   const errors = validateSync(validated, { skipMissingProperties: false });
-  if (errors.length > 0) {
-    const details = errors.map((e) => Object.values(e.constraints ?? {}).join(', ')).join('\n');
-    throw new Error(`Invalid environment configuration:\n${details}`);
+  const details = errors.map((e) => Object.values(e.constraints ?? {}).join(', '));
+  details.push(...productionProblems(validated));
+  if (details.length > 0) {
+    throw new Error(`Invalid environment configuration:\n${details.join('\n')}`);
   }
   return validated;
+}
+
+const PLACEHOLDER_SECRET = /change-me/i;
+
+function productionProblems(env: EnvironmentVariables): string[] {
+  if (env.NODE_ENV !== NodeEnv.Production || env.DEMO_MODE) return [];
+  const problems: string[] = [];
+  for (const name of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
+    if (PLACEHOLDER_SECRET.test(env[name] ?? '')) {
+      problems.push(`${name} must be replaced with a real secret in production`);
+    }
+  }
+  if (env.JWT_ACCESS_SECRET && env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) {
+    problems.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must differ');
+  }
+  if (!env.COOKIE_SECURE) problems.push('COOKIE_SECURE must be true in production');
+  return problems;
 }

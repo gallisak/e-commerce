@@ -76,11 +76,11 @@ describe('CategoriesService', () => {
     await expect(service.create({ name: 'Books' })).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('regenerates the slug on rename', async () => {
+  it('keeps the slug on rename so catalog links do not break', async () => {
     await service.update('cat-1', { name: 'Electronics' });
     expect(repository.update).toHaveBeenCalledWith('cat-1', {
       name: 'Electronics',
-      slug: 'electronics',
+      slug: undefined,
     });
   });
 
@@ -97,7 +97,17 @@ describe('CategoriesService', () => {
     expect(repository.delete).not.toHaveBeenCalled();
   });
 
+  it('explains when only deleted products still reference the category', async () => {
+    repository.findById.mockResolvedValue({ ...category, _count: { products: 0 } });
+    repository.countAllProducts.mockResolvedValue(1);
+    await expect(service.remove('cat-1')).rejects.toThrow(
+      'Category is still used by deleted products kept for order history and cannot be deleted',
+    );
+    expect(repository.delete).not.toHaveBeenCalled();
+  });
+
   it('deletes an empty category and invalidates the cache', async () => {
+    repository.findById.mockResolvedValue({ ...category, _count: { products: 0 } });
     await service.remove('cat-1');
     expect(repository.delete).toHaveBeenCalledWith('cat-1');
     expect(cache.invalidate).toHaveBeenCalled();

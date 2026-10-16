@@ -36,6 +36,7 @@ const storedToken = (overrides: Partial<RefreshToken> = {}): RefreshToken => ({
   tokenHash: 'aa',
   expiresAt: new Date(Date.now() + 60_000),
   revokedAt: null,
+  graceUsedAt: null,
   createdAt: new Date(),
   ...overrides,
 });
@@ -70,6 +71,7 @@ describe('AuthService', () => {
       create: vi.fn(),
       findById: vi.fn().mockResolvedValue(storedToken()),
       revokeIfActive: vi.fn().mockResolvedValue(true),
+      consumeReuseGrace: vi.fn().mockResolvedValue(true),
       deleteById: vi.fn(),
       deleteAllForUser: vi.fn().mockResolvedValue(2),
       deleteExpiredForUser: vi.fn(),
@@ -189,6 +191,20 @@ describe('AuthService', () => {
       expect(session.tokens).toBe(issued);
       expect(refreshTokens.deleteAllForUser).not.toHaveBeenCalled();
       expect(refreshTokens.revokeIfActive).not.toHaveBeenCalled();
+    });
+
+    it('allows the grace retry only once', async () => {
+      refreshTokens.findById.mockResolvedValue(
+        storedToken({ revokedAt: new Date(Date.now() - 1000) }),
+      );
+      refreshTokens.consumeReuseGrace.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+      await expect(service.refresh('valid-refresh')).resolves.toMatchObject({ tokens: issued });
+      await expect(service.refresh('valid-refresh')).rejects.toThrow(
+        'Refresh token has been revoked',
+      );
+      expect(tokenService.issue).toHaveBeenCalledTimes(1);
+      expect(refreshTokens.deleteAllForUser).not.toHaveBeenCalled();
     });
 
     it('rejects an expired token', async () => {

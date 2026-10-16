@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role, type User } from '../generated/prisma/client.js';
+import { Role, type User } from '../generated/prisma/client.js';
 import { UsersRepository } from './users.repository.js';
+import { isUniqueViolation } from '../common/filters/prisma-error.mapper.js';
 
 export interface CreateUserInput {
   email: string;
@@ -27,7 +28,7 @@ export class UsersService {
     try {
       return await this.usersRepository.create({ ...input, role: input.role ?? Role.CUSTOMER });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isUniqueViolation(error)) {
         throw new ConflictException('Email is already registered');
       }
       throw error;

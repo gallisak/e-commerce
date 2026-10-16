@@ -15,6 +15,7 @@ import { REDIS_CLIENT } from './redis.constants.js';
         const client = new Redis({
           host: config.get('REDIS_HOST', { infer: true }),
           port: config.get('REDIS_PORT', { infer: true }),
+          db: config.get('REDIS_DB', { infer: true }),
           lazyConnect: true,
           enableOfflineQueue: false,
           maxRetriesPerRequest: 1,

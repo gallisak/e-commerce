@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Product } from '../generated/prisma/client.js';
+import { isUniqueViolation } from '../common/filters/prisma-error.mapper.js';
 
 export type CartItemWithProduct = Prisma.CartItemGetPayload<{ include: { product: true } }>;
 
@@ -20,7 +21,7 @@ export class CartRepository {
     try {
       return (await this.prisma.cart.create({ data: { userId }, select: { id: true } })).id;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isUniqueViolation(error)) {
         return (
           await this.prisma.cart.findUniqueOrThrow({ where: { userId }, select: { id: true } })
         ).id;

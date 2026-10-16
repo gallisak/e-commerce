@@ -12,6 +12,7 @@ import { CategoriesRepository, type CategoryWithCount } from './categories.repos
 import { CategoryResponseDto } from './dto/category-response.dto.js';
 import type { CreateCategoryDto } from './dto/create-category.dto.js';
 import type { UpdateCategoryDto } from './dto/update-category.dto.js';
+import { isUniqueViolation } from '../common/filters/prisma-error.mapper.js';
 
 @Injectable()
 export class CategoriesService {
@@ -56,7 +57,7 @@ export class CategoriesService {
     const category = await this.withUniqueCheck(() =>
       this.categoriesRepository.update(id, {
         name: dto.name,
-        slug: dto.slug ?? (dto.name ? this.resolveSlug(undefined, dto.name) : undefined),
+        slug: dto.slug,
       }),
     );
     this.logger.log(`Category updated: ${category.id}`);
@@ -65,9 +66,14 @@ export class CategoriesService {
   }
 
   async remove(id: string): Promise<void> {
-    await this.getOrThrow(id);
-    if ((await this.categoriesRepository.countAllProducts(id)) > 0) {
+    const category = await this.getOrThrow(id);
+    if (category._count.products > 0) {
       throw new ConflictException('Category has products and cannot be deleted');
+    }
+    if ((await this.categoriesRepository.countAllProducts(id)) > 0) {
+      throw new ConflictException(
+        'Category is still used by deleted products kept for order history and cannot be deleted',
+      );
     }
     try {
       await this.categoriesRepository.delete(id);
@@ -98,7 +104,7 @@ export class CategoriesService {
     try {
       return await operation();
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (isUniqueViolation(error)) {
         throw new ConflictException('Category with this name or slug already exists');
       }
       throw error;

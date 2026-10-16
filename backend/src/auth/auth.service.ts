@@ -75,13 +75,16 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
-    if (!stored.revokedAt && !(await this.refreshTokens.revokeIfActive(stored.id))) {
-      const current = await this.refreshTokens.findById(stored.id);
-      if (!current?.revokedAt || !this.isWithinReuseGrace(current.revokedAt)) {
+    const rotated = !stored.revokedAt && (await this.refreshTokens.revokeIfActive(stored.id));
+    if (!rotated) {
+      const current = stored.revokedAt ? stored : await this.refreshTokens.findById(stored.id);
+      if (
+        !current?.revokedAt ||
+        !this.isWithinReuseGrace(current.revokedAt) ||
+        !(await this.refreshTokens.consumeReuseGrace(stored.id))
+      ) {
         throw new UnauthorizedException('Refresh token has been revoked');
       }
-    }
-    if (stored.revokedAt) {
       this.logger.log(`Recently rotated refresh token retried for user ${stored.userId}`);
     }
 

@@ -12,10 +12,19 @@
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w backend",
     "format": "prettier --write \"{backend,frontend}/{src,test}/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"{backend,frontend}/{src,test}/**/*.{ts,tsx}\""
   },
   "devDependencies": {
     "prettier": "^3.4.2"
+  },
+  "allowScripts": {
+    "prisma": true,
+    "@prisma/engines": true,
+    "argon2": true,
+    "esbuild": true,
+    "msgpackr-extract": true,
+    "@scarf/scarf": false
   }
 }

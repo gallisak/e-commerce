@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { Controller, Get, Header, Query, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Header, Logger, Query, Res, StreamableFile } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -24,6 +24,8 @@ import { SalesByDayDto, SalesSummaryDto } from './dto/analytics-response.dto.js'
 @Roles(Role.ADMIN)
 @Controller('admin/analytics')
 export class AnalyticsController {
+  private readonly logger = new Logger(AnalyticsController.name);
+
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('summary')
@@ -54,6 +56,9 @@ export class AnalyticsController {
     res.setHeader('Content-Disposition', `attachment; filename="${report.fileName}"`);
     return new StreamableFile(Readable.from(report.rows), {
       type: 'text/csv; charset=utf-8',
+    }).setErrorHandler((error) => {
+      this.logger.error(`Sales report export failed: ${error.message}`);
+      res.destroy(error);
     });
   }
 }

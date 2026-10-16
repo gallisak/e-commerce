@@ -171,6 +171,16 @@ describe('ProductsService', () => {
     expect(storage.removeIfLocal).toHaveBeenCalledWith('/uploads/products/old.png');
   });
 
+  it('removes the new file when the product update fails', async () => {
+    repository.update.mockRejectedValue(new Error('database is down'));
+
+    await expect(
+      service.uploadImage('p-1', { buffer: Buffer.from('img') } as Express.Multer.File),
+    ).rejects.toThrow('database is down');
+    expect(storage.removeIfLocal).toHaveBeenCalledWith('/uploads/products/new.png');
+    expect(cache.invalidate).not.toHaveBeenCalled();
+  });
+
   it('soft-deletes and invalidates the cache', async () => {
     await service.remove('p-1');
     expect(repository.softDelete).toHaveBeenCalledWith('p-1');
