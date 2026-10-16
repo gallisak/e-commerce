@@ -3,14 +3,14 @@ import { ErrorState } from '@/components/feedback/error-state';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { authApi } from '@/features/auth/api';
+import { profileQuery } from '@/features/auth/api';
 import { OrderHistory } from '@/features/orders/components/order-history';
 import { formatDate } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
 export function AccountPage() {
   useDocumentTitle('My account');
-  const profile = useQuery({ queryKey: ['users', 'me'], queryFn: authApi.me });
+  const profile = useQuery(profileQuery());
 
   return (
     <div className="space-y-8">

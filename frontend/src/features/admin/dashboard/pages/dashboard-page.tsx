@@ -1,6 +1,6 @@
 import { useAuth } from '@/features/auth/use-auth';
 
-export function AdminDashboardPage() {
+export function DashboardPage() {
   const { user } = useAuth();
   return (
     <div className="space-y-2">

@@ -8,9 +8,16 @@ export const SEARCH_DEBOUNCE_MS = 350;
 interface SearchBoxProps {
   value: string;
   onSearch: (value: string) => void;
+  id?: string;
+  label?: string;
 }
 
-export function SearchBox({ value, onSearch }: SearchBoxProps) {
+export function SearchBox({
+  value,
+  onSearch,
+  id = 'catalog-search',
+  label = 'Search products',
+}: SearchBoxProps) {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const submitted = useRef(value);
@@ -45,17 +52,17 @@ export function SearchBox({ value, onSearch }: SearchBoxProps) {
         submit(draft);
       }}
     >
-      <label htmlFor="catalog-search" className="sr-only">
-        Search products
+      <label htmlFor={id} className="sr-only">
+        {label}
       </label>
       <SearchIcon
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
       <Input
-        id="catalog-search"
+        id={id}
         type="search"
-        placeholder="Search products…"
+        placeholder={`${label}…`}
         autoComplete="off"
         maxLength={100}
         value={draft}

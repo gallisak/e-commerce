@@ -1,8 +1,14 @@
-import { LayoutDashboardIcon } from 'lucide-react';
+import { LayoutDashboardIcon, PackageIcon, TagsIcon } from 'lucide-react';
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { PageLoader } from '@/components/feedback/page-loader';
 import { cn } from '@/lib/utils';
 
-const ADMIN_LINKS = [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon, end: true }];
+const ADMIN_LINKS = [
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
+  { to: '/admin/products', label: 'Products', icon: PackageIcon, end: false },
+  { to: '/admin/categories', label: 'Categories', icon: TagsIcon, end: false },
+];
 
 export function AdminLayout() {
   return (
@@ -31,7 +37,9 @@ export function AdminLayout() {
         </nav>
       </aside>
       <section className="min-w-0 flex-1">
-        <Outlet />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </section>
     </div>
   );

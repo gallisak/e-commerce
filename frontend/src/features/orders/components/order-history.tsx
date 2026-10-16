@@ -16,6 +16,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import type { OrderStatus } from '@/lib/api/types';
 import { formatDateTime, formatPrice, pluralize } from '@/lib/format';
+import { buildQuery, patchParams, readPage } from '@/lib/search-params';
 import { myOrdersQuery } from '../api';
 import { isOrderStatus, ORDER_STATUS_LABELS, ORDER_STATUSES, shortOrderId } from '../order-status';
 import { OrderStatusBadge } from './order-status-badge';
@@ -27,11 +28,6 @@ const STATUS_OPTIONS = [
   ...ORDER_STATUSES.map((status) => ({ value: status, label: ORDER_STATUS_LABELS[status] })),
 ];
 
-function readPage(value: string | null): number {
-  const page = Number(value);
-  return Number.isInteger(page) && page >= 1 && page <= 10_000 ? page : 1;
-}
-
 export function OrderHistory() {
   const [params, setParams] = useSearchParams();
   const rawStatus = params.get('status');
@@ -39,16 +35,13 @@ export function OrderHistory() {
   const page = readPage(params.get('page'));
   const orders = useQuery(myOrdersQuery({ page, status }));
 
-  const hrefFor = (target: { page?: number; status?: OrderStatus }) => {
-    const next = new URLSearchParams();
-    if (target.status) next.set('status', target.status);
-    if (target.page && target.page > 1) next.set('page', String(target.page));
-    const query = next.toString();
-    return query ? `?${query}` : '';
-  };
+  const hrefFor = (target: { page?: number; status?: OrderStatus }) =>
+    buildQuery({ status: target.status, page: target.page });
 
   const changeStatus = (value: string | null) => {
-    setParams(new URLSearchParams(hrefFor({ status: isOrderStatus(value) ? value : undefined })));
+    setParams((prev) =>
+      patchParams(prev, { status: isOrderStatus(value) ? value : null, page: null }),
+    );
   };
 
   return (

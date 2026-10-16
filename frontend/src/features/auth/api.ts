@@ -1,3 +1,4 @@
+import { queryOptions } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import type { AuthResponse, User } from '@/lib/api/types';
 
@@ -29,8 +30,14 @@ export const authApi = {
     await api.post('/auth/logout', undefined, { skipAuthRefresh: true });
   },
 
-  async me(): Promise<User> {
-    const { data } = await api.get<User>('/users/me');
+  async me(signal?: AbortSignal): Promise<User> {
+    const { data } = await api.get<User>('/users/me', { signal });
     return data;
   },
 };
+
+export const profileQuery = () =>
+  queryOptions({
+    queryKey: ['users', 'me'] as const,
+    queryFn: ({ signal }) => authApi.me(signal),
+  });
